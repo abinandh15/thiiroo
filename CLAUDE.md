@@ -3,7 +3,7 @@
 Production dashboard for Thiiroo (Amazon India seller, merchant A3K5KSR5J1JHDD) that turns Amazon
 customization order zips into ready-to-print A4 sheets. Owner: Abinandh (senior frontend engineer).
 
-## State (Phase 1 complete, verified end-to-end 2026-07-30)
+## State (Phase 1 + polish + Phase 2 complete, verified end-to-end 2026-07-30)
 
 Vite + React 18 + TS + zustand + idb + react-router (HashRouter). Local-first; IndexedDB persistence;
 no backend yet. Node on this machine is 20.12.1 — that's why Vite is pinned to v5 (Vite 7+ needs newer Node).
@@ -35,9 +35,14 @@ template (`1.pdf` in Downloads) dimensionally.
   data — never commit/deploy), `?approveall=1`, `?printtest=1`.
 - E2E: `node e2e-check.mjs <outDir>` with dev server running (Playwright, channel:'chrome').
 
+- Phase 1 polish (done): drag-to-swap slots on the print-layout sheet (persists photo order),
+  Queue Rows/Cards toggle, batch page drag-to-reorder (print follows display order).
+- Phase 2 (done): `src/products` registry (id/name/ASIN/size/template) drives routes + sidebar;
+  `TemplateDescriptor`/`DEFAULT_TEMPLATE` in geometry.ts; `deriveWaste()` rebuilds cut bars from
+  card geometry (exact vs Illustrator); Template screen is a live editor, overrides persisted per
+  product in localStorage (`thiiroo-template-overrides`) via `effectiveTemplate()`.
+
 ## Roadmap
 
-- Phase 1 polish: drag-to-swap slots, Cards view, batch page reorder (deferred from handoff).
-- Phase 2: products as pluggable modules (id/name/ASIN/routes/template descriptor), template editor.
 - Phase 3: small Node backend for Amazon SP-API (LWA OAuth) — orders inbox replaces manual drop
   (drop stays as fallback). Sidebar "Amazon — not connected" card becomes connection status.
