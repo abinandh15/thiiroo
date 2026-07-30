@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { CARD, H_STRIPS, ID_ZONE, PHOTO, PHOTO_INSET, ROW_TOP, SHEET, SLOTS_PER_SHEET, V_BARS, slotRect } from '../lib/geometry';
 import type { SheetModel } from '../lib/sheets';
 import { blobUrl } from '../lib/format';
@@ -15,10 +16,14 @@ interface SheetProps {
   unit: 'mm' | number;
   guides: GuideOptions;
   shadow?: boolean;
+  /** screen only: makes filled slots draggable; called with the two slot indexes to swap */
+  onSwapSlots?: (a: number, b: number) => void;
 }
 
 /** Renders the A4 landscape template sheet. All geometry authored in mm. */
-export function Sheet({ model, unit, guides, shadow }: SheetProps) {
+export function Sheet({ model, unit, guides, shadow, onSwapSlots }: SheetProps) {
+  const [dragSlot, setDragSlot] = useState<number | null>(null);
+  const [overSlot, setOverSlot] = useState<number | null>(null);
   const u = (v: number) => (unit === 'mm' ? `${v}mm` : `${Math.round(v * unit * 100) / 100}px`);
   const markLen = 4; // mm, drawn inside the sheet edges
   const markThick = unit === 'mm' ? '0.15mm' : '1px';
@@ -52,11 +57,37 @@ export function Sheet({ model, unit, guides, shadow }: SheetProps) {
         const r = slotRect(slot);
         const fill = model.slots[slot];
         const url = fill ? blobUrl(fill.photo.cropBlob) : undefined;
+        const draggable = !!onSwapSlots && !!fill;
         return (
           <div
             key={slot}
-            className="pcard"
+            className={[
+              'pcard',
+              draggable ? 'swappable' : '',
+              dragSlot === slot ? 'dragging' : '',
+              overSlot === slot && dragSlot !== null && dragSlot !== slot ? 'dropover' : '',
+            ].filter(Boolean).join(' ')}
             style={{ left: u(r.x), top: u(r.y), width: u(r.w), height: u(r.h) }}
+            draggable={draggable}
+            onDragStart={draggable ? (e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', String(slot));
+              setDragSlot(slot);
+            } : undefined}
+            onDragEnd={draggable ? () => { setDragSlot(null); setOverSlot(null); } : undefined}
+            onDragOver={onSwapSlots && fill ? (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              setOverSlot(slot);
+            } : undefined}
+            onDragLeave={onSwapSlots ? () => setOverSlot((s) => (s === slot ? null : s)) : undefined}
+            onDrop={onSwapSlots && fill ? (e) => {
+              e.preventDefault();
+              const from = Number(e.dataTransfer.getData('text/plain'));
+              setDragSlot(null);
+              setOverSlot(null);
+              if (Number.isInteger(from) && from !== slot && model.slots[from]) onSwapSlots(from, slot);
+            } : undefined}
           >
             <div
               className={`photo${fill ? '' : ' blank'}`}
@@ -67,7 +98,7 @@ export function Sheet({ model, unit, guides, shadow }: SheetProps) {
                 height: u(PHOTO.h),
               }}
             >
-              {url ? <img src={url} alt={fill!.photo.label} /> : fill ? null : <span className="screen-only">blank</span>}
+              {url ? <img src={url} alt={fill!.photo.label} draggable={false} /> : fill ? null : <span className="screen-only">blank</span>}
               {guides.slotNumbers && fill && <span className="slotnum screen-only">{slot + 1}</span>}
             </div>
             {/* the 15.9mm chin is simply the card area left white below the photo */}

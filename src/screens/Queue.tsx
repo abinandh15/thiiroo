@@ -22,6 +22,13 @@ export function Queue() {
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState<Filter>('all');
+  const [view, setView] = useState<'rows' | 'cards'>(
+    (localStorage.getItem('thiiroo-queue-view') as 'rows' | 'cards') || 'rows'
+  );
+  const setViewPersist = (v: 'rows' | 'cards') => {
+    localStorage.setItem('thiiroo-queue-view', v);
+    setView(v);
+  };
   const [query, setQuery] = useState('');
   const [focusIdx, setFocusIdx] = useState(0);
   const [drag, setDrag] = useState(false);
@@ -134,6 +141,10 @@ export function Queue() {
         </div>
         <span className="spacer" style={{ flex: 1 }} />
         <span className="kbd-legend header">↑↓ move · space select · ↵ open</span>
+        <div className="seg view-seg">
+          <button className={view === 'rows' ? 'on' : ''} onClick={() => setViewPersist('rows')}>Rows</button>
+          <button className={view === 'cards' ? 'on' : ''} onClick={() => setViewPersist('cards')}>Cards</button>
+        </div>
       </div>
 
       {failedImports.length > 0 && (
@@ -155,16 +166,18 @@ export function Queue() {
 
       <div className="queue-body">
         <div className="queue-table-col">
-          <div className="qhead">
-            <span />
-            <span>Order ID</span>
-            <span>Item · Files</span>
-            <span>Crops</span>
-            <span>Qty</span>
-            <span>Status</span>
-            <span>Imported</span>
-          </div>
-          <div className="queue-scroll">
+          {view === 'rows' && (
+            <div className="qhead">
+              <span />
+              <span>Order ID</span>
+              <span>Item · Files</span>
+              <span>Crops</span>
+              <span>Qty</span>
+              <span>Status</span>
+              <span>Imported</span>
+            </div>
+          )}
+          <div className={`queue-scroll${view === 'cards' ? ' as-cards' : ''}`}>
             {visible.length === 0 && (
               <div className="state-card">
                 <div className="fanned">
@@ -180,7 +193,64 @@ export function Queue() {
                 <div className="actions"><ImportButton className="btn primary" /></div>
               </div>
             )}
-            {visible.map((o, i) => {
+            {view === 'cards' && visible.length > 0 && (
+              <div className="qcards">
+                {visible.map((o, i) => {
+                  const k = orderKey(o);
+                  const lowDpi = o.photos.filter((p) => !p.missing && p.dpi < 150).length;
+                  const missing = o.photos.filter((p) => p.missing).length;
+                  const isReview = o.status === 'needs_review' || o.status === 'held';
+                  const isPrinted = o.status === 'printed' || o.status === 'done';
+                  return (
+                    <div
+                      key={k}
+                      className={[
+                        'qcard',
+                        selection.has(k) ? 'selected' : '',
+                        isReview ? 'review' : '',
+                        isPrinted ? 'printed' : '',
+                        i === focusIdx ? 'focused' : '',
+                      ].join(' ')}
+                      onClick={() => { setFocusIdx(i); toggle(o); }}
+                      onDoubleClick={() => openOrder(o)}
+                    >
+                      <div className="qcard-thumbs">
+                        {o.photos.slice(0, 6).map((p) =>
+                          p.missing ? (
+                            <span key={p.id} className="thumb missing" />
+                          ) : (
+                            <img
+                              key={p.id}
+                              className={`thumb${p.dpi < 150 ? ' lowdpi' : ''}`}
+                              src={blobUrl(p.cropBlob)}
+                              alt=""
+                            />
+                          )
+                        )}
+                        {o.photos.length > 6 && <span className="thumb more">+{o.photos.length - 6}</span>}
+                      </div>
+                      <div className="qcard-head">
+                        <input type="checkbox" checked={selection.has(k)} readOnly />
+                        <span className="oid">{o.id}</span>
+                        <span className="mono faint" style={{ marginLeft: 'auto' }}>×{o.qty}</span>
+                      </div>
+                      <div className="qcard-meta mono faint">
+                        Item {o.itemId} · {o.photos.length} JPGs · {timeHM(o.importedAt)}
+                      </div>
+                      {lowDpi > 0 && <div className="warnline">{lowDpi} photo{lowDpi > 1 ? 's' : ''} below 150 DPI</div>}
+                      {missing > 0 && <div className="warnline">{missing} image{missing > 1 ? 's' : ''} missing from zip</div>}
+                      <div className="qcard-foot">
+                        <StatusPill
+                          status={o.status}
+                          extra={o.status === 'ready' ? `${sheetCount(o)} sheet${sheetCount(o) > 1 ? 's' : ''}` : undefined}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {view === 'rows' && visible.map((o, i) => {
               const k = orderKey(o);
               const lowDpi = o.photos.filter((p) => !p.missing && p.dpi < 150).length;
               const missing = o.photos.filter((p) => p.missing).length;

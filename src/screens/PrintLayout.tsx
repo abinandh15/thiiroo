@@ -6,6 +6,7 @@ import { Sheet } from '../components/Sheet';
 import { ThemeToggle } from '../components/common';
 import { printSheets } from '../lib/printJob';
 import { CARD, CHIN, PHOTO, SHEET } from '../lib/geometry';
+import { blobUrl } from '../lib/format';
 
 export function PrintLayout() {
   const { key: rawKey } = useParams();
@@ -15,6 +16,7 @@ export function PrintLayout() {
   const setGuide = useStore((s) => s.setGuide);
   const combineMode = useStore((s) => s.combineMode);
   const setCombineMode = useStore((s) => s.setCombineMode);
+  const swapPhotos = useStore((s) => s.swapPhotos);
 
   const key = rawKey ? decodeURIComponent(rawKey) : undefined;
   const order = orders.find((o) => orderKey(o) === key) ?? orders.find((o) => o.status === 'ready');
@@ -42,6 +44,12 @@ export function PrintLayout() {
   }
 
   const k = orderKey(order);
+
+  const swapSlots = (a: number, b: number) => {
+    const fa = sheet?.slots[a];
+    const fb = sheet?.slots[b];
+    if (fa && fb) swapPhotos(k, fa.photo.id, fb.photo.id);
+  };
 
   return (
     <div className="main">
@@ -78,7 +86,7 @@ export function PrintLayout() {
         </aside>
 
         <div className="sheet-canvas">
-          {sheet && <Sheet model={sheet} unit={2} guides={guides} shadow />}
+          {sheet && <Sheet model={sheet} unit={2} guides={guides} shadow onSwapSlots={swapSlots} />}
           <div className="sheet-readout">
             <span>{SHEET.w} × {SHEET.h} mm · A4 landscape</span>
             <span>card {CARD.w} × {CARD.h} mm</span>
@@ -128,8 +136,16 @@ export function PrintLayout() {
 
           <div>
             <div className="card-title" style={{ marginBottom: 6 }}>Slots</div>
-            <div className="muted" style={{ fontSize: 10.5, lineHeight: 1.55 }}>
-              Photos fill in buyer order — slot {'1→6'}, top row then bottom row. Blanks stay at the end.
+            <div className="muted" style={{ fontSize: 10.5, lineHeight: 1.55, marginBottom: 8 }}>
+              Photos fill in buyer order — drag a card on the sheet to swap two slots.
+            </div>
+            <div className="slot-chips">
+              {sheet?.slots.map((fill, i) => (
+                <span key={i} className={`slot-chip${fill ? '' : ' blank'}`}>
+                  {fill && <img src={blobUrl(fill.photo.cropBlob)} alt="" draggable={false} />}
+                  <i>{i + 1}</i>
+                </span>
+              ))}
             </div>
           </div>
 

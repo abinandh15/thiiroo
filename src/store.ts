@@ -44,6 +44,7 @@ interface AppState {
   setSelection(sel: Set<string>): void;
   updatePhoto(key: string, photoId: string, patch: Partial<Photo>): void;
   approveAll(key: string): void;
+  swapPhotos(key: string, photoIdA: string, photoIdB: string): void;
   reframePhoto(key: string, photoId: string, placement: Placement | undefined): Promise<void>;
   setStatus(key: string, status: Order['status']): void;
   markPrinted(keys: string[], alsoDone: boolean): void;
@@ -157,6 +158,22 @@ export const useStore = create<AppState>((set, get) => ({
         const next = { ...o, photos: o.photos.map((p) => (p.missing ? p : { ...p, approved: true })) };
         next.status = recomputeStatus(next);
         void persistAndLog(next, 'All crops approved');
+        return next;
+      }),
+    }));
+  },
+
+  swapPhotos(key, photoIdA, photoIdB) {
+    set((s) => ({
+      orders: s.orders.map((o) => {
+        if (orderKey(o) !== key) return o;
+        const ia = o.photos.findIndex((p) => p.id === photoIdA);
+        const ib = o.photos.findIndex((p) => p.id === photoIdB);
+        if (ia < 0 || ib < 0 || ia === ib) return o;
+        const photos = [...o.photos];
+        [photos[ia], photos[ib]] = [photos[ib], photos[ia]];
+        const next = { ...o, photos };
+        void saveOrder(next);
         return next;
       }),
     }));

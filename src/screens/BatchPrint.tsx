@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { allApproved, orderKey, sheetCount, useStore } from '../store';
 import { blankCount, buildSheets } from '../lib/sheets';
@@ -25,15 +25,39 @@ export function BatchPrint() {
   }, [orders, batchKeys]);
 
   const notReady = batchOrders.filter((o) => !allApproved(o) && o.status !== 'ready');
-  const printable = batchOrders.filter((o) => allApproved(o) || o.status === 'ready');
+  const printable = useMemo(
+    () => batchOrders.filter((o) => allApproved(o) || o.status === 'ready'),
+    [batchOrders]
+  );
   const sheets = useMemo(() => buildSheets(printable, combineMode), [printable, combineMode]);
+
+  // drag-to-reorder pages: a permutation over `sheets`, reset whenever the composition changes
+  const [pageOrder, setPageOrder] = useState<number[]>([]);
+  const [dragPage, setDragPage] = useState<number | null>(null);
+  const [overPage, setOverPage] = useState<number | null>(null);
+  useEffect(() => {
+    setPageOrder(sheets.map((_, i) => i));
+  }, [sheets]);
+  const orderedSheets = useMemo(
+    () => (pageOrder.length === sheets.length ? pageOrder.map((i) => sheets[i]) : sheets),
+    [pageOrder, sheets]
+  );
+  const movePage = (from: number, to: number) => {
+    setPageOrder((ord) => {
+      const cur = ord.length === sheets.length ? [...ord] : sheets.map((_, i) => i);
+      const [moved] = cur.splice(from, 1);
+      cur.splice(to, 0, moved);
+      return cur;
+    });
+  };
+
   const strictSheets = useMemo(() => buildSheets(printable, 'strict'), [printable]);
   const partials = strictSheets.filter((s) => blankCount(s) > 0).length;
   const saved = strictSheets.length - buildSheets(printable, 'combine').length;
   const totalPhotos = printable.reduce((n, o) => n + o.photos.filter((p) => !p.missing).length, 0);
 
   const doPrint = () => {
-    printSheets(sheets, printable.map(orderKey));
+    printSheets(orderedSheets, printable.map(orderKey));
   };
 
   return (
@@ -72,8 +96,33 @@ export function BatchPrint() {
           ) : (
             <>
               <div className="batch-grid">
-                {sheets.map((s, i) => (
-                  <div key={i} className="batch-page">
+                {orderedSheets.map((s, i) => (
+                  <div
+                    key={pageOrder.length === sheets.length ? pageOrder[i] : i}
+                    className={[
+                      'batch-page',
+                      'reorderable',
+                      dragPage === i ? 'dragging' : '',
+                      overPage === i && dragPage !== null && dragPage !== i ? 'dropover' : '',
+                    ].filter(Boolean).join(' ')}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', String(i));
+                      setDragPage(i);
+                    }}
+                    onDragEnd={() => { setDragPage(null); setOverPage(null); }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverPage(i); }}
+                    onDragLeave={() => setOverPage((p) => (p === i ? null : p))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = Number(e.dataTransfer.getData('text/plain'));
+                      setDragPage(null);
+                      setOverPage(null);
+                      if (Number.isInteger(from) && from !== i) movePage(from, i);
+                    }}
+                    title="Drag to reorder pages"
+                  >
                     <Sheet model={s} unit={1.15} guides={guides} shadow />
                     <div className="cap">
                       Page {i + 1} · <span>{s.orderIds.join(' + ')}</span> ·{' '}
