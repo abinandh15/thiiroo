@@ -9,6 +9,7 @@ import { Review } from './screens/Review';
 import { PrintLayout } from './screens/PrintLayout';
 import { BatchPrint } from './screens/BatchPrint';
 import { Template } from './screens/Template';
+import { PRODUCTS } from './products';
 
 /** Dev-only helpers driven by query params: ?sample=1 imports public/sample-order.zip,
  *  ?approveall=1 approves everything, ?printtest=1 mounts print sheets for print-to-pdf checks. */
@@ -73,13 +74,17 @@ export default function App() {
         <Sidebar />
         <Routes>
           <Route path="/" element={<Overview />} />
-          <Route path="/p/instant-photo-prints/queue" element={<Queue />} />
-          <Route path="/p/instant-photo-prints/review" element={<Review />} />
-          <Route path="/p/instant-photo-prints/review/:key" element={<Review />} />
-          <Route path="/p/instant-photo-prints/print" element={<PrintLayout />} />
-          <Route path="/p/instant-photo-prints/print/:key" element={<PrintLayout />} />
-          <Route path="/p/instant-photo-prints/print-batch" element={<BatchPrint />} />
-          <Route path="/p/instant-photo-prints/template" element={<Template />} />
+          {PRODUCTS.map((p) => (
+            <Route key={p.id} path={`/p/${p.id}`}>
+              <Route path="queue" element={<Queue />} />
+              <Route path="review" element={<Review />} />
+              <Route path="review/:key" element={<Review />} />
+              <Route path="print" element={<PrintLayout />} />
+              <Route path="print/:key" element={<PrintLayout />} />
+              <Route path="print-batch" element={<BatchPrint />} />
+              <Route path="template" element={<Template />} />
+            </Route>
+          ))}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

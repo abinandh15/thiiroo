@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { allApproved, orderKey, sheetCount, useStore } from '../store';
+import { allApproved, effectiveTemplate, orderKey, sheetCount, useStore } from '../store';
+import { instantPhotoPrints } from '../products';
 import { blankCount, buildSheets } from '../lib/sheets';
 import { Sheet } from '../components/Sheet';
 import { ThemeToggle } from '../components/common';
@@ -13,6 +14,7 @@ export function BatchPrint() {
   const combineMode = useStore((s) => s.combineMode);
   const setCombineMode = useStore((s) => s.setCombineMode);
   const guides = useStore((s) => s.guides);
+  const template = useStore((s) => effectiveTemplate(s, instantPhotoPrints.id));
 
   const [alsoDone, setAlsoDone] = useState(false);
   const [markPrintedAfter, setMarkPrintedAfter] = useState(true);
@@ -123,7 +125,7 @@ export function BatchPrint() {
                     }}
                     title="Drag to reorder pages"
                   >
-                    <Sheet model={s} unit={1.15} guides={guides} shadow />
+                    <Sheet model={s} unit={1.15} guides={guides} shadow template={template} />
                     <div className="cap">
                       Page {i + 1} · <span>{s.orderIds.join(' + ')}</span> ·{' '}
                       {blankCount(s) > 0 ? (

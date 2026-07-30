@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { CARD, H_STRIPS, ID_ZONE, PHOTO, PHOTO_INSET, ROW_TOP, SHEET, SLOTS_PER_SHEET, V_BARS, slotRect } from '../lib/geometry';
+import { DEFAULT_TEMPLATE, slotRect, slotsPerSheet } from '../lib/geometry';
+import type { TemplateDescriptor } from '../lib/geometry';
 import type { SheetModel } from '../lib/sheets';
 import { blobUrl } from '../lib/format';
 
@@ -18,34 +19,37 @@ interface SheetProps {
   shadow?: boolean;
   /** screen only: makes filled slots draggable; called with the two slot indexes to swap */
   onSwapSlots?: (a: number, b: number) => void;
+  /** sheet layout to render; defaults to the verified Instant Photo Prints template */
+  template?: TemplateDescriptor;
 }
 
 /** Renders the A4 landscape template sheet. All geometry authored in mm. */
-export function Sheet({ model, unit, guides, shadow, onSwapSlots }: SheetProps) {
+export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: SheetProps) {
+  const t = template ?? DEFAULT_TEMPLATE;
   const [dragSlot, setDragSlot] = useState<number | null>(null);
   const [overSlot, setOverSlot] = useState<number | null>(null);
   const u = (v: number) => (unit === 'mm' ? `${v}mm` : `${Math.round(v * unit * 100) / 100}px`);
   const markLen = 4; // mm, drawn inside the sheet edges
   const markThick = unit === 'mm' ? '0.15mm' : '1px';
 
-  const columnEdges = [...new Set([22.0, 22.0 + CARD.w, 110.5, 110.5 + CARD.w, 198.8, 198.8 + CARD.w])];
-  const rowEdges = [...new Set([ROW_TOP[0], ROW_TOP[1], ROW_TOP[1] + CARD.h])];
+  const columnEdges = [...new Set(t.colX.flatMap((x) => [x, x + t.card.w]))];
+  const rowEdges = [...new Set([...t.rowTop, t.rowTop[t.rowTop.length - 1] + t.card.h])];
 
   return (
     <div
       className="sheet"
       style={{
-        width: u(SHEET.w),
-        height: u(SHEET.h),
+        width: u(t.sheet.w),
+        height: u(t.sheet.h),
         boxShadow: shadow ? 'var(--shadow-sheet)' : undefined,
       }}
     >
       {guides.greyBars &&
-        V_BARS.map((b, i) => (
+        t.vBars.map((b, i) => (
           <div key={`v${i}`} className="vbar" style={{ left: u(b.x), width: u(b.w) }} />
         ))}
       {guides.greyBars &&
-        H_STRIPS.map((b, i) => (
+        t.hStrips.map((b, i) => (
           <div
             key={`h${i}`}
             className="hstrip"
@@ -53,8 +57,8 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots }: SheetProps) 
           />
         ))}
 
-      {Array.from({ length: SLOTS_PER_SHEET }, (_, slot) => {
-        const r = slotRect(slot);
+      {Array.from({ length: slotsPerSheet(t) }, (_, slot) => {
+        const r = slotRect(slot, t);
         const fill = model.slots[slot];
         const url = fill ? blobUrl(fill.photo.cropBlob) : undefined;
         const draggable = !!onSwapSlots && !!fill;
@@ -92,10 +96,10 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots }: SheetProps) 
             <div
               className={`photo${fill ? '' : ' blank'}`}
               style={{
-                left: u(PHOTO_INSET),
-                top: u(PHOTO_INSET),
-                width: u(PHOTO.w),
-                height: u(PHOTO.h),
+                left: u(t.photoInset),
+                top: u(t.photoInset),
+                width: u(t.photo.w),
+                height: u(t.photo.h),
               }}
             >
               {url ? <img src={url} alt={fill!.photo.label} draggable={false} /> : fill ? null : <span className="screen-only">blank</span>}
@@ -110,10 +114,10 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots }: SheetProps) 
         <div
           className="oid-margin"
           style={{
-            left: u(ID_ZONE.x),
-            top: u(ID_ZONE.y),
-            width: u(ID_ZONE.w),
-            height: u(ID_ZONE.h),
+            left: u(t.idZone.x),
+            top: u(t.idZone.y),
+            width: u(t.idZone.w),
+            height: u(t.idZone.h),
             fontSize: unit === 'mm' ? '3mm' : `${unit * 3}px`,
           }}
         >

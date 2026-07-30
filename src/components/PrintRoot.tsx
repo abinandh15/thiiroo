@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { usePrintJob } from '../lib/printJob';
-import { useStore } from '../store';
+import { effectiveTemplate, useStore } from '../store';
+import { instantPhotoPrints } from '../products';
 import { Sheet } from './Sheet';
 
 /** Hidden on screen; the only thing visible to the printer. */
@@ -8,6 +9,7 @@ export function PrintRoot() {
   const { sheets, orderKeys, awaitingConfirm, setAwaitingConfirm, clear } = usePrintJob();
   const guides = useStore((s) => s.guides);
   const markPrinted = useStore((s) => s.markPrinted);
+  const template = useStore((s) => effectiveTemplate(s, instantPhotoPrints.id));
 
   useEffect(() => {
     const onAfter = () => {
@@ -21,7 +23,7 @@ export function PrintRoot() {
     <>
       <div className="print-root">
         {sheets.map((m, i) => (
-          <Sheet key={i} model={m} unit="mm" guides={{ ...guides, slotNumbers: false }} />
+          <Sheet key={i} model={m} unit="mm" guides={{ ...guides, slotNumbers: false }} template={template} />
         ))}
       </div>
       {awaitingConfirm && (

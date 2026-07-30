@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { ActivityEvent, ImportProgress, Order, Photo, Placement } from './lib/types';
 import { cropPhoto, parseOrderZip } from './lib/ingest';
 import { printDpi, SLOTS_PER_SHEET } from './lib/geometry';
+import type { TemplateDescriptor } from './lib/geometry';
+import { getProduct } from './products';
 import { deleteOrder, loadActivity, loadOrders, logActivity, saveOrder } from './lib/persist';
 
 export const orderKey = (o: Pick<Order, 'id' | 'itemId'>) => `${o.id}::${o.itemId}`;
@@ -36,6 +38,8 @@ interface AppState {
   combineMode: 'strict' | 'combine';
   theme: 'light' | 'dark';
   guides: { greyBars: boolean; cropMarks: boolean; orderId: boolean; slotNumbers: boolean };
+  /** per-product template overrides (edited in the Template screen); absent = factory template */
+  templateOverrides: Record<string, TemplateDescriptor>;
 
   init(): Promise<void>;
   importFiles(files: File[]): Promise<void>;
@@ -53,6 +57,23 @@ interface AppState {
   setCombineMode(m: 'strict' | 'combine'): void;
   toggleTheme(): void;
   setGuide(g: keyof AppState['guides'], v: boolean): void;
+  setTemplateOverride(productId: string, t: TemplateDescriptor): void;
+  resetTemplateOverride(productId: string): void;
+}
+
+const TEMPLATE_LS_KEY = 'thiiroo-template-overrides';
+
+function loadTemplateOverrides(): Record<string, TemplateDescriptor> {
+  try {
+    return JSON.parse(localStorage.getItem(TEMPLATE_LS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+/** the template a product actually prints with: override if present, else factory */
+export function effectiveTemplate(s: Pick<AppState, 'templateOverrides'>, productId: string): TemplateDescriptor {
+  return s.templateOverrides[productId] ?? getProduct(productId)!.template;
 }
 
 function recomputeStatus(o: Order): Order['status'] {
@@ -78,6 +99,7 @@ export const useStore = create<AppState>((set, get) => ({
   combineMode: 'strict',
   theme: (localStorage.getItem('thiiroo-theme') as 'light' | 'dark') || 'light',
   guides: { greyBars: true, cropMarks: true, orderId: true, slotNumbers: false },
+  templateOverrides: loadTemplateOverrides(),
 
   async init() {
     if (get().loaded) return;
@@ -244,5 +266,22 @@ export const useStore = create<AppState>((set, get) => ({
 
   setGuide(g, v) {
     set((s) => ({ guides: { ...s.guides, [g]: v } }));
+  },
+
+  setTemplateOverride(productId, t) {
+    set((s) => {
+      const templateOverrides = { ...s.templateOverrides, [productId]: t };
+      localStorage.setItem(TEMPLATE_LS_KEY, JSON.stringify(templateOverrides));
+      return { templateOverrides };
+    });
+  },
+
+  resetTemplateOverride(productId) {
+    set((s) => {
+      const templateOverrides = { ...s.templateOverrides };
+      delete templateOverrides[productId];
+      localStorage.setItem(TEMPLATE_LS_KEY, JSON.stringify(templateOverrides));
+      return { templateOverrides };
+    });
   },
 }));

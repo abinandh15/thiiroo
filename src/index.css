@@ -548,3 +548,13 @@ a { color: var(--accent); text-decoration: none; }
 .qcard-meta { font-size: 10px; }
 .qcard .warnline { font-size: 10.5px; color: var(--attention-text); }
 .qcard-foot { margin-top: auto; display: flex; }
+
+/* ---- Phase 2: template editor ---- */
+.tmpl-field { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 11px; }
+.tmpl-field .k { font-family: var(--font-mono); color: var(--ink-faint); flex: 1; }
+.tmpl-field input {
+  width: 72px; padding: 4px 7px; border: 1px solid var(--border-strong); border-radius: var(--radius-btn);
+  background: var(--bg-panel); color: var(--ink); font-family: var(--font-mono); font-size: 11px; text-align: right;
+}
+.tmpl-field input:focus { outline: none; border-color: var(--accent); }
+.tmpl-field .u { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); width: 20px; }

@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { orderKey, useStore } from '../store';
+import { effectiveTemplate, orderKey, useStore } from '../store';
+import { instantPhotoPrints } from '../products';
 import { buildSheets } from '../lib/sheets';
 import { Sheet } from '../components/Sheet';
 import { ThemeToggle } from '../components/common';
 import { printSheets } from '../lib/printJob';
-import { CARD, CHIN, PHOTO, SHEET } from '../lib/geometry';
 import { blobUrl } from '../lib/format';
 
 export function PrintLayout() {
@@ -17,6 +17,7 @@ export function PrintLayout() {
   const combineMode = useStore((s) => s.combineMode);
   const setCombineMode = useStore((s) => s.setCombineMode);
   const swapPhotos = useStore((s) => s.swapPhotos);
+  const template = useStore((s) => effectiveTemplate(s, instantPhotoPrints.id));
 
   const key = rawKey ? decodeURIComponent(rawKey) : undefined;
   const order = orders.find((o) => orderKey(o) === key) ?? orders.find((o) => o.status === 'ready');
@@ -74,7 +75,7 @@ export function PrintLayout() {
           <div className="section-label">Sheets</div>
           {sheets.map((s, i) => (
             <div key={i} className={`sheet-thumb${i === cur ? ' current' : ''}`} onClick={() => setCur(i)}>
-              <Sheet model={s} unit={0.47} guides={{ ...guides, slotNumbers: false }} />
+              <Sheet model={s} unit={0.47} guides={{ ...guides, slotNumbers: false }} template={template} />
               <div className="cap">
                 Sheet {i + 1} · {s.slots.filter(Boolean).length} photos{s.copyNote ? ` · ${s.copyNote}` : ''}
               </div>
@@ -86,12 +87,12 @@ export function PrintLayout() {
         </aside>
 
         <div className="sheet-canvas">
-          {sheet && <Sheet model={sheet} unit={2} guides={guides} shadow onSwapSlots={swapSlots} />}
+          {sheet && <Sheet model={sheet} unit={2} guides={guides} shadow onSwapSlots={swapSlots} template={template} />}
           <div className="sheet-readout">
-            <span>{SHEET.w} × {SHEET.h} mm · A4 landscape</span>
-            <span>card {CARD.w} × {CARD.h} mm</span>
-            <span>photo {PHOTO.w} × {PHOTO.h} mm</span>
-            <span>chin {CHIN} mm</span>
+            <span>{template.sheet.w} × {template.sheet.h} mm · A4 landscape</span>
+            <span>card {template.card.w} × {template.card.h} mm</span>
+            <span>photo {template.photo.w} × {template.photo.h} mm</span>
+            <span>chin {template.chin} mm</span>
             <span className="zoom-chip">zoom 2 px/mm</span>
           </div>
         </div>

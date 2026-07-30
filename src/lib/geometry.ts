@@ -23,11 +23,69 @@ export const ID_ZONE = { x: 281.5, y: 53, w: 10, h: 104 }; // rotated order-id t
 
 export const SLOTS_PER_SHEET = 6;
 
+/** A complete sheet layout, all values in mm. Phase 2: products carry one of these. */
+export interface TemplateDescriptor {
+  sheet: { w: number; h: number };
+  card: { w: number; h: number };
+  colX: number[];
+  rowTop: number[];
+  photo: { w: number; h: number };
+  photoInset: number;
+  chin: number;
+  vBars: { x: number; w: number }[];
+  hStrips: { x: number; w: number; y: number; h: number }[];
+  idZone: { x: number; y: number; w: number; h: number };
+}
+
+/** Recompute the grey cut-waste bars from card geometry. The constants reproduce
+ *  the Illustrator file's bars exactly for the default template (verified below). */
+export function deriveWaste(t: Pick<TemplateDescriptor, 'sheet' | 'card' | 'colX' | 'rowTop'>) {
+  const OUTER = 5.4; // width of the bars outside the first/last card
+  const MID_W = 16.6; // fixed width of a mid bar, centered on the gap between cards
+  const OV_V = 3.4; // vertical tuck of the top/bottom strips under the cards
+  const cols = [...t.colX].sort((a, b) => a - b);
+  const lastRight = cols[cols.length - 1] + t.card.w;
+  const vBars = [
+    { x: cols[0] - OUTER, w: OUTER },
+    ...cols.slice(1).map((left, i) => {
+      const gapCenter = (cols[i] + t.card.w + left) / 2;
+      return { x: gapCenter - MID_W / 2, w: MID_W };
+    }),
+    { x: lastRight, w: OUTER },
+  ];
+  const x = cols[0] - OUTER;
+  const w = lastRight + OUTER - x;
+  const rows = [...t.rowTop].sort((a, b) => a - b);
+  const hStrips = [
+    { x, w, y: 0, h: rows[0] + OV_V },
+    { x, w, y: rows[rows.length - 1] + t.card.h - OV_V, h: t.sheet.h - (rows[rows.length - 1] + t.card.h - OV_V) },
+  ];
+  return { vBars, hStrips };
+}
+
+/** The verified Instant Photo Prints layout (matches the seller's Illustrator template). */
+export const DEFAULT_TEMPLATE: TemplateDescriptor = {
+  sheet: SHEET,
+  card: CARD,
+  colX: COL_X,
+  rowTop: ROW_TOP,
+  photo: PHOTO,
+  photoInset: PHOTO_INSET,
+  chin: CHIN,
+  vBars: V_BARS,
+  hStrips: H_STRIPS,
+  idZone: ID_ZONE,
+};
+
+export function slotsPerSheet(t: TemplateDescriptor): number {
+  return t.colX.length * t.rowTop.length;
+}
+
 /** slot order: top row L->R then bottom row L->R */
-export function slotRect(slot: number) {
-  const col = slot % 3;
-  const row = Math.floor(slot / 3);
-  return { x: COL_X[col], y: ROW_TOP[row], w: CARD.w, h: CARD.h };
+export function slotRect(slot: number, t: TemplateDescriptor = DEFAULT_TEMPLATE) {
+  const col = slot % t.colX.length;
+  const row = Math.floor(slot / t.colX.length);
+  return { x: t.colX[col], y: t.rowTop[row], w: t.card.w, h: t.card.h };
 }
 
 /** DPI floor used for warnings */
