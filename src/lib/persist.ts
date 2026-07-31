@@ -33,6 +33,17 @@ export async function loadOrders(): Promise<Order[]> {
   return rows.map((r) => r.order).sort((a, b) => a.importedAt - b.importedAt);
 }
 
+export async function deleteActivityFor(orderId: string): Promise<void> {
+  const d = await db();
+  const tx = d.transaction('activity', 'readwrite');
+  let cur = await tx.store.openCursor();
+  while (cur) {
+    if ((cur.value as ActivityEvent).orderId === orderId) await cur.delete();
+    cur = await cur.continue();
+  }
+  await tx.done;
+}
+
 export async function logActivity(ev: ActivityEvent): Promise<void> {
   const d = await db();
   await d.put('activity', ev);

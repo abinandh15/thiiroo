@@ -25,3 +25,6 @@ dist-ssr
 
 public/sample-order.zip
 .claude/settings.local.json
+
+# Amazon SP-API credentials — never commit
+.env

@@ -1,6 +1,59 @@
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
 import { PRODUCTS } from '../products';
+
+type AmazonStatus =
+  | { state: 'offline' } // backend not running — manual import only
+  | { state: 'setup' | 'authorize' | 'error'; detail?: string; error?: string }
+  | { state: 'connected'; marketplaces: string[] };
+
+/** Poll the Phase 3 backend's /api/status; offline (no backend) is a normal state, not an error. */
+function useAmazonStatus(): AmazonStatus {
+  const [status, setStatus] = useState<AmazonStatus>({ state: 'offline' });
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) throw new Error();
+        const body = await res.json();
+        if (alive) setStatus(body.state ? body : { state: 'offline' });
+      } catch {
+        if (alive) setStatus({ state: 'offline' });
+      }
+    };
+    void check();
+    const t = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  return status;
+}
+
+const AMAZON_CARD: Record<AmazonStatus['state'], { t: string; s: string; cls: string }> = {
+  offline: { t: 'Amazon — not connected', s: 'Manual zip import · start the backend with npm run server', cls: '' },
+  setup: { t: 'Amazon — setup needed', s: 'LWA credentials missing in .env', cls: 'warn' },
+  authorize: { t: 'Amazon — authorize app', s: 'Refresh token missing — self-authorize in Developer Central', cls: 'warn' },
+  error: { t: 'Amazon — connection error', s: '', cls: 'warn' },
+  connected: { t: 'Amazon connected', s: '', cls: 'ok' },
+};
+
+function AmazonCard() {
+  const status = useAmazonStatus();
+  const card = AMAZON_CARD[status.state];
+  const sub =
+    status.state === 'connected'
+      ? `SP-API · ${status.marketplaces.length} marketplace${status.marketplaces.length !== 1 ? 's' : ''} · orders inbox soon`
+      : status.state === 'error'
+        ? status.error ?? 'backend reachable but SP-API call failed'
+        : card.s;
+  return (
+    <div className={`side-amazon ${card.cls}`}>
+      <div className="t"><span className="dot" />{card.t}</div>
+      <div className="s">{sub}</div>
+    </div>
+  );
+}
 
 export function Sidebar() {
   const orders = useStore((s) => s.orders);
@@ -54,10 +107,7 @@ export function Sidebar() {
       })}
       <button className="side-ghost" title="A second listing plugs in as a new product module">+ Add product</button>
 
-      <div className="side-amazon">
-        <div className="t"><span className="dot" />Amazon — not connected</div>
-        <div className="s">Manual zip import · SP-API in Phase 3</div>
-      </div>
+      <AmazonCard />
     </nav>
   );
 }

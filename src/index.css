@@ -123,6 +123,8 @@ a { color: var(--accent); text-decoration: none; }
   padding: 10px 12px; font-size: 10.5px; line-height: 1.5;
 }
 .side-amazon .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.35); margin-right: 6px; }
+.side-amazon.ok .dot { background: var(--ready); }
+.side-amazon.warn .dot { background: var(--attention); }
 .side-amazon .t { font-size: 11px; font-weight: 600; }
 .side-amazon .s { opacity: 0.55; }
 
@@ -305,6 +307,15 @@ a { color: var(--accent); text-decoration: none; }
 .banner-error .row { font-family: var(--font-mono); font-size: 11px; margin-top: 6px; }
 .banner-error .actions { display: flex; gap: 8px; margin-top: 10px; }
 
+/* duplicate-import banner (attention, not error) */
+.banner-warn {
+  background: var(--attention-tint); border: 1px solid color-mix(in oklch, var(--attention) 30%, transparent);
+  border-radius: var(--radius-card); padding: 12px 16px; margin: 14px 22px 0;
+}
+.banner-warn .t { color: var(--attention-text); font-weight: 600; font-size: 12.5px; }
+.banner-warn .row { font-family: var(--font-mono); font-size: 11px; margin-top: 6px; }
+.banner-warn .actions { display: flex; gap: 8px; margin-top: 10px; }
+
 /* ============ review ============ */
 .review-body { flex: 1; display: flex; min-height: 0; }
 .review-rail {
@@ -334,6 +345,18 @@ a { color: var(--accent); text-decoration: none; }
 .crop-frame .thirds::before { content: ''; position: absolute; left: 33.33%; right: 33.33%; top: 0; bottom: 0; border-left: 1px solid rgba(255,255,255,0.55); border-right: 1px solid rgba(255,255,255,0.55); }
 .crop-frame .thirds::after { content: ''; position: absolute; top: 33.33%; bottom: 33.33%; left: 0; right: 0; border-top: 1px solid rgba(255,255,255,0.55); border-bottom: 1px solid rgba(255,255,255,0.55); }
 .crop-frame .safe { position: absolute; inset: 7%; border: 1px dashed rgba(255,255,255,0.65); pointer-events: none; }
+.crop-frame .rot-handle {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  width: 24px; height: 24px; border-radius: 50%; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-panel); border: 1px solid var(--border-strong); box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  color: var(--ink-muted); font-size: 13px; cursor: grab; touch-action: none;
+  opacity: 0; transition: opacity 120ms ease;
+}
+.crop-frame:hover .rot-handle { opacity: 1; }
+.crop-frame .rot-handle:active { cursor: grabbing; color: var(--accent); }
+.sheet .cutline { position: absolute; background: #f0a3a6; }
+
 .dpi-chip {
   position: absolute; top: 0; right: 0; background: var(--attention); color: #fff;
   font-family: var(--font-mono); font-size: 9.5px; font-weight: 600; padding: 2px 7px; z-index: 2;
@@ -343,6 +366,10 @@ a { color: var(--accent); text-decoration: none; }
 .stepper { display: flex; align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius-btn); background: var(--bg-panel); }
 .stepper button { border: none; background: none; padding: 5px 9px; font-size: 13px; color: var(--ink-muted); }
 .stepper .val { font-family: var(--font-mono); font-size: 11px; min-width: 46px; text-align: center; }
+.stepper input.val { width: 52px; border: none; background: none; color: inherit; padding: 0; outline: none; }
+.stepper input.val:focus { color: var(--ink); background: var(--bg-subtle); }
+.stepper.nudge button { font-size: 9px; padding: 5px 7px; }
+.stepper.nudge button:hover { color: var(--ink); }
 
 .filmstrip {
   flex-shrink: 0; background: var(--bg-panel); border-top: 1px solid var(--border);
@@ -459,8 +486,8 @@ a { color: var(--accent); text-decoration: none; }
 
 /* ============ the sheet ============ */
 .sheet { background: #ffffff; position: relative; }
-.sheet .vbar { position: absolute; background: #e6e4e0; top: 0; bottom: 0; }
-.sheet .hstrip { position: absolute; background: #eeece8; }
+.sheet .vbar { position: absolute; background: #d4d1cc; top: 0; bottom: 0; }
+.sheet .hstrip { position: absolute; background: #d8d5d0; }
 .sheet .pcard { position: absolute; background: #ffffff; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.14); }
 .sheet .pcard .photo { position: absolute; background: #f1efec; overflow: hidden; }
 .sheet .pcard .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }

@@ -58,7 +58,7 @@ export interface Order {
 
 export interface ImportProgress {
   fileName: string;
-  state: 'queued' | 'decoding' | 'done' | 'error';
+  state: 'queued' | 'decoding' | 'done' | 'skipped' | 'error';
   detail?: string;
   photosDone?: number;
   photosTotal?: number;
