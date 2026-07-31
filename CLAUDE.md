@@ -45,6 +45,9 @@ template (`1.pdf` in Downloads) dimensionally.
 
 ## Conventions
 
+- Commits are authored as `Abinandh <abinandh15@gmail.com>` (pass `--author`), no Claude
+  co-author trailer.
+
 - All sheet geometry authored in mm; `Sheet.tsx` renders at any px/mm or true mm for print.
 - Design tokens/fidelity come from `../403-9409699-9386704_65793702893802/design_handoff_thiiroo_dashboard/README.md`
   (light "workshop" + dark "darkroom" themes; paper always #ffffff; amber reserved for attention).
@@ -62,12 +65,49 @@ template (`1.pdf` in Downloads) dimensionally.
   fresh parse is held in `duplicateImports` so replace needs no re-decode). "Reopen review"
   (Queue selbar + Print header) sends ready/printed/done orders back to `needs_review`,
   approvals kept. `init()` is guarded against StrictMode double-mount (stale-snapshot race).
+- Remove order (done 2026-07-31): "Remove…" in the Queue selbar, window.confirm-gated; deletes
+  the order AND its activity-log entries (state + IndexedDB; activity matches by orderId, so a
+  multi-item order loses all its items' history). Re-import brings the order back as new.
+- Review fine-nudge (done 2026-07-31): shift+arrows / on-screen pad move the image 1 design
+  unit (~0.32 mm printed; shift+click pad = 5). Plain arrows still switch photos. Nudging
+  re-crops and clears the photo's approval like any re-frame.
+- Review fine-rotation (done 2026-07-31): `[` `]` keys / ⟲ angle° ⟳ stepper rotate 1°
+  (shift = 5°) about the image centre; angle shown signed (-180…180]. cropPhoto always
+  supported arbitrary angles, so pipeline unchanged. R (90°) still on top. Plus a hover
+  rot-handle at the crop frame's top centre: drag swings around the frame centre, snaps
+  to 0/90/180/270 within 2.5° (shift = free, 0.5° steps), commits on release.
+- Cut guide lines (done 2026-07-31): new `cutLines` guide — 0.15 mm light-red (#f0a3a6)
+  hairline TICKS at each row cut edge, drawn only in the bare outer margins (sheet edge →
+  grey frame, both sides) — never across the print area; the grey bars themselves guide the
+  vertical cuts. On by default, printed, toggleable in Print layout options. Order-id zone
+  y=80 (was 53), font 4 mm (was 3). Grey bars darkened (#d4d1cc / #d8d5d0, were #e6e4e0/#eeece8).
+- Zoom value editable (done 2026-07-31): the stepper readout is an input — type an exact
+  ratio (rel. to buyer scale), Enter/blur applies, Escape reverts (via ref flag: escape's
+  blur fires before the draft-state reset lands), garbage ignored. zoomTo keeps the
+  crop-window centre fixed.
 - Phase 2 (done): `src/products` registry (id/name/ASIN/size/template) drives routes + sidebar;
   `TemplateDescriptor`/`DEFAULT_TEMPLATE` in geometry.ts; `deriveWaste()` rebuilds cut bars from
   card geometry (exact vs Illustrator); Template screen is a live editor, overrides persisted per
   product in localStorage (`thiiroo-template-overrides`) via `effectiveTemplate()`.
 
-## Roadmap
+## Phase 3 — SP-API (in progress, started 2026-07-31)
 
-- Phase 3: small Node backend for Amazon SP-API (LWA OAuth) — orders inbox replaces manual drop
-  (drop stays as fallback). Sidebar "Amazon — not connected" card becomes connection status.
+- `server/index.mjs`: zero-dep Node proxy (`npm run server`, port 3001, reads `.env` via
+  `node --env-file`). LWA token exchange w/ cache; endpoints: `/api/status` (probes a minimal
+  Orders call, always HTTP 200 with `{state}`), `/api/orders`, `/api/orders/:id/items` (incl.
+  `customizedUrl` = the same zip as manual download), `/api/customization?url=` (Amazon-hosts only).
+  No AWS SigV4 needed (dropped by Amazon Nov 2023); India marketplace `A21TJRUUN4KGV`, EU endpoint.
+- `.env` (gitignored): LWA_CLIENT_ID / LWA_CLIENT_SECRET / LWA_REFRESH_TOKEN. App
+  `amzn1.sp.solution.f16060ef-ee3f-4c39-bcb9-737a0ca68e4f`, secret rotation deadline 2027-01-27.
+  Secret was pasted in chat 2026-07-31 — rotate once stable.
+- Vite dev proxy `/api` → 3001; sidebar card polls `/api/status` every 30 s
+  (offline / setup / authorize / error / connected — offline is normal, not an error).
+- BLOCKED (pending verification by Abinandh): SP-API returns 403 "Access denied" on Orders even
+  though LWA token exchange succeeds. Likely cause: the `.env` values are the SANDBOX LWA pair
+  (owner suspects this too). Fix: Developer Central → app row → "LWA credentials → View"
+  (production, NOT "View sandbox credentials") + Authorize → production refresh token → update
+  `.env`, restart `npm run server`. If still 403 after that, check app roles ("Inventory and
+  Order Tracking") and regenerate the token — roles are baked in at generation time.
+  `SPAPI_SANDBOX=1` switches the server to the sandbox endpoint for canned-data testing.
+- Next once unblocked: orders inbox panel in Queue (list SP-API orders, one-click fetch of
+  customization zips into the existing `importFiles` pipeline); manual drop stays as fallback.

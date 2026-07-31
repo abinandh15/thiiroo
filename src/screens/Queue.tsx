@@ -17,6 +17,7 @@ export function Queue() {
   const replaceDuplicates = useStore((s) => s.replaceDuplicates);
   const dismissDuplicates = useStore((s) => s.dismissDuplicates);
   const reopenReview = useStore((s) => s.reopenReview);
+  const removeOrder = useStore((s) => s.removeOrder);
   const selection = useStore((s) => s.selection);
   const setSelection = useStore((s) => s.setSelection);
   const importFiles = useStore((s) => s.importFiles);
@@ -369,6 +370,22 @@ export function Queue() {
                 onClick={() => markPrinted(selectedOrders.map(orderKey), false)}
               >
                 Mark printed
+              </button>
+              <button
+                className="btn sm"
+                title="Delete the selected orders and their activity history"
+                onClick={() => {
+                  const n = selectedOrders.length;
+                  const ok = window.confirm(
+                    `Remove ${n} order${n > 1 ? 's' : ''} from the dashboard?\n\n` +
+                      'Photos, review work and activity history are discarded. ' +
+                      'Re-importing the zip brings the order back as new.'
+                  );
+                  if (!ok) return;
+                  for (const o of selectedOrders) removeOrder(orderKey(o));
+                }}
+              >
+                Remove…
               </button>
               <button
                 className="btn sm white"

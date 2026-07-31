@@ -77,7 +77,7 @@ export function Template() {
           <Sheet
             model={emptyModel}
             unit={2}
-            guides={{ greyBars: true, cropMarks: true, orderId: true, slotNumbers: true }}
+            guides={{ greyBars: true, cropMarks: true, cutLines: true, orderId: true, slotNumbers: true }}
             shadow
             template={template}
           />

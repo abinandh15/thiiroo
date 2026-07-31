@@ -4,7 +4,7 @@ import { cropPhoto, parseOrderZip } from './lib/ingest';
 import { printDpi, SLOTS_PER_SHEET } from './lib/geometry';
 import type { TemplateDescriptor } from './lib/geometry';
 import { getProduct } from './products';
-import { deleteOrder, loadActivity, loadOrders, logActivity, saveOrder } from './lib/persist';
+import { deleteActivityFor, deleteOrder, loadActivity, loadOrders, logActivity, saveOrder } from './lib/persist';
 
 export const orderKey = (o: Pick<Order, 'id' | 'itemId'>) => `${o.id}::${o.itemId}`;
 
@@ -46,7 +46,7 @@ interface AppState {
   batchKeys: string[];
   combineMode: 'strict' | 'combine';
   theme: 'light' | 'dark';
-  guides: { greyBars: boolean; cropMarks: boolean; orderId: boolean; slotNumbers: boolean };
+  guides: { greyBars: boolean; cropMarks: boolean; cutLines: boolean; orderId: boolean; slotNumbers: boolean };
   /** per-product template overrides (edited in the Template screen); absent = factory template */
   templateOverrides: Record<string, TemplateDescriptor>;
 
@@ -114,7 +114,7 @@ export const useStore = create<AppState>((set, get) => ({
   batchKeys: [],
   combineMode: 'strict',
   theme: (localStorage.getItem('thiiroo-theme') as 'light' | 'dark') || 'light',
-  guides: { greyBars: true, cropMarks: true, orderId: true, slotNumbers: false },
+  guides: { greyBars: true, cropMarks: true, cutLines: true, orderId: true, slotNumbers: false },
   templateOverrides: loadTemplateOverrides(),
 
   async init() {
@@ -299,8 +299,17 @@ export const useStore = create<AppState>((set, get) => ({
 
   removeOrder(key) {
     const order = get().orders.find((o) => orderKey(o) === key);
-    if (order) void deleteOrder(order);
-    set((s) => ({ orders: s.orders.filter((o) => orderKey(o) !== key) }));
+    if (order) {
+      void deleteOrder(order);
+      // removal drops the order's activity history too (note: matches by orderId, so a
+      // multi-item order loses the history of all its items)
+      void deleteActivityFor(order.id);
+    }
+    set((s) => ({
+      orders: s.orders.filter((o) => orderKey(o) !== key),
+      activity: order ? s.activity.filter((ev) => ev.orderId !== order.id) : s.activity,
+      selection: new Set([...s.selection].filter((sel) => sel !== key)),
+    }));
   },
 
   buildBatch(keys) {

@@ -135,6 +135,7 @@ export function PrintLayout() {
               [
                 ['greyBars', 'Grey cut-waste bars'],
                 ['cropMarks', 'Crop marks'],
+                ['cutLines', 'Cut guide lines (red)'],
                 ['orderId', 'Order ID in right margin'],
                 ['slotNumbers', 'Slot numbers (screen only)'],
               ] as const
