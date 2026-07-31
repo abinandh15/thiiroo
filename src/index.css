@@ -305,6 +305,15 @@ a { color: var(--accent); text-decoration: none; }
 .banner-error .row { font-family: var(--font-mono); font-size: 11px; margin-top: 6px; }
 .banner-error .actions { display: flex; gap: 8px; margin-top: 10px; }
 
+/* duplicate-import banner (attention, not error) */
+.banner-warn {
+  background: var(--attention-tint); border: 1px solid color-mix(in oklch, var(--attention) 30%, transparent);
+  border-radius: var(--radius-card); padding: 12px 16px; margin: 14px 22px 0;
+}
+.banner-warn .t { color: var(--attention-text); font-weight: 600; font-size: 12.5px; }
+.banner-warn .row { font-family: var(--font-mono); font-size: 11px; margin-top: 6px; }
+.banner-warn .actions { display: flex; gap: 8px; margin-top: 10px; }
+
 /* ============ review ============ */
 .review-body { flex: 1; display: flex; min-height: 0; }
 .review-rail {

@@ -25,6 +25,24 @@ template (`1.pdf` in Downloads) dimensionally.
   six 3″×4″ cards (76.2×101.6) at cols x=22.0/110.5/198.8, rows top y=3.4/105.0; photo area 69.8×82.5
   inset 3.2 (l/r/t), chin 15.9; grey cut bars; order ID rotated in right margin.
 
+## Code map
+
+- `src/App.tsx` — HashRouter; routes generated per product (`/p/:productId/{queue,review,print,print-batch,template}`);
+  DevHooks reads the URL params below.
+- `src/store.ts` — zustand store: orders, import queue with retry, selection, batch order,
+  guides toggles, theme, template overrides. `orderKey(o)` = `id::itemId`. Status machine in
+  `recomputeStatus` (`needs_review`/`ready` derived; `printed`/`done`/`held` sticky).
+- `src/products/index.ts` — Phase 2 registry; single product so far (`instant-photo-prints`, ASIN B0HB4CYFG3).
+- `src/lib/zip.ts` — dependency-free zip read/write (DecompressionStream).
+- `src/lib/ingest.ts` — order JSON walker + crop pipeline (EXIF-oriented).
+- `src/lib/geometry.ts` — mm template constants + `TemplateDescriptor`, `deriveWaste()`, `slotRect()`, `printDpi()`.
+- `src/lib/sheets.ts` — sheet packing (`strict` per-order / `combine` part sheets).
+- `src/lib/persist.ts` — IndexedDB (idb): orders + activity log (last 30 shown).
+- `src/components/Sheet.tsx` — renders a sheet at any px/mm scale or true mm for print;
+  `PrintRoot.tsx` mounts print-only DOM driven by `src/lib/printJob.ts`.
+- Screens: `Overview` (stats + activity), `Queue` (drop zone, rows/cards), `Review`, `PrintLayout`,
+  `BatchPrint`, `Template` (live editor).
+
 ## Conventions
 
 - All sheet geometry authored in mm; `Sheet.tsx` renders at any px/mm or true mm for print.
@@ -34,9 +52,16 @@ template (`1.pdf` in Downloads) dimensionally.
 - Dev URL hooks (DEV only): `?sample=1` imports public/sample-order.zip (gitignored, contains real buyer
   data — never commit/deploy), `?approveall=1`, `?printtest=1`.
 - E2E: `node e2e-check.mjs <outDir>` with dev server running (Playwright, channel:'chrome').
+  Requires `public/sample-order.zip` (drop any real order zip there — it's not in git, so a fresh
+  clone has neither the sample nor working `?sample=1` until one is added).
 
 - Phase 1 polish (done): drag-to-swap slots on the print-layout sheet (persists photo order),
   Queue Rows/Cards toggle, batch page drag-to-reorder (print follows display order).
+- Queue safety (done 2026-07-31): re-importing a zip whose `orderId::itemId` is already in the
+  queue keeps the existing order and shows an amber banner (Replace anyway / Keep existing; the
+  fresh parse is held in `duplicateImports` so replace needs no re-decode). "Reopen review"
+  (Queue selbar + Print header) sends ready/printed/done orders back to `needs_review`,
+  approvals kept. `init()` is guarded against StrictMode double-mount (stale-snapshot race).
 - Phase 2 (done): `src/products` registry (id/name/ASIN/size/template) drives routes + sidebar;
   `TemplateDescriptor`/`DEFAULT_TEMPLATE` in geometry.ts; `deriveWaste()` rebuilds cut bars from
   card geometry (exact vs Illustrator); Template screen is a live editor, overrides persisted per

@@ -27,12 +27,21 @@ export interface FailedImport {
   file: File;
 }
 
+/** a re-imported zip whose order is already in the queue; the fresh parse is held
+ *  so "Replace anyway" can apply it without re-decoding */
+export interface DuplicateImport {
+  fileName: string;
+  fresh: Order;
+  existingStatus: Order['status'];
+}
+
 interface AppState {
   loaded: boolean;
   orders: Order[];
   activity: ActivityEvent[];
   importQueue: ImportProgress[];
   failedImports: FailedImport[];
+  duplicateImports: DuplicateImport[];
   selection: Set<string>;
   batchKeys: string[];
   combineMode: 'strict' | 'combine';
@@ -45,6 +54,10 @@ interface AppState {
   importFiles(files: File[]): Promise<void>;
   retryFailed(): Promise<void>;
   dismissFailed(): void;
+  replaceDuplicates(fileNames: string[]): void;
+  dismissDuplicates(): void;
+  /** send a ready/printed/done order back through the review gate (approvals are kept) */
+  reopenReview(key: string): void;
   setSelection(sel: Set<string>): void;
   updatePhoto(key: string, photoId: string, patch: Partial<Photo>): void;
   approveAll(key: string): void;
@@ -62,6 +75,8 @@ interface AppState {
 }
 
 const TEMPLATE_LS_KEY = 'thiiroo-template-overrides';
+
+let initStarted = false;
 
 function loadTemplateOverrides(): Record<string, TemplateDescriptor> {
   try {
@@ -94,6 +109,7 @@ export const useStore = create<AppState>((set, get) => ({
   activity: [],
   importQueue: [],
   failedImports: [],
+  duplicateImports: [],
   selection: new Set(),
   batchKeys: [],
   combineMode: 'strict',
@@ -102,7 +118,10 @@ export const useStore = create<AppState>((set, get) => ({
   templateOverrides: loadTemplateOverrides(),
 
   async init() {
-    if (get().loaded) return;
+    // guard against concurrent calls (StrictMode double-mounts the effect); a second
+    // load landing after early mutations would clobber the store with a stale snapshot
+    if (get().loaded || initStarted) return;
+    initStarted = true;
     const [orders, activity] = await Promise.all([loadOrders(), loadActivity()]);
     set({ orders, activity, loaded: true });
   },
@@ -112,7 +131,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!zips.length) return;
     set((s) => ({
       importQueue: [
-        ...s.importQueue.filter((q) => q.state !== 'done' && q.state !== 'error'),
+        ...s.importQueue.filter((q) => q.state === 'queued' || q.state === 'decoding'),
         ...zips.map<ImportProgress>((f) => ({ fileName: f.name, state: 'queued' })),
       ],
     }));
@@ -127,9 +146,19 @@ export const useStore = create<AppState>((set, get) => ({
           setProg({ photosDone: done, photosTotal: total, detail: `decoding ${done}/${total}` })
         );
         const key = orderKey(order);
-        set((s) => ({
-          orders: [...s.orders.filter((o) => orderKey(o) !== key), order],
-        }));
+        const existing = get().orders.find((o) => orderKey(o) === key);
+        if (existing) {
+          // same order already in the queue — keep it (and its review work); offer replace in the UI
+          set((s) => ({
+            duplicateImports: [
+              ...s.duplicateImports.filter((d) => orderKey(d.fresh) !== key),
+              { fileName: file.name, fresh: order, existingStatus: existing.status },
+            ],
+          }));
+          setProg({ state: 'skipped', detail: 'already imported' });
+          continue;
+        }
+        set((s) => ({ orders: [...s.orders, order] }));
         setProg({ state: 'done', detail: `${order.photos.length}` });
         await persistAndLog(order, `Imported from ${file.name}`);
       } catch (err) {
@@ -152,6 +181,30 @@ export const useStore = create<AppState>((set, get) => ({
 
   dismissFailed() {
     set({ failedImports: [] });
+  },
+
+  replaceDuplicates(fileNames) {
+    const toApply = get().duplicateImports.filter((d) => fileNames.includes(d.fileName));
+    set((s) => ({
+      orders: s.orders.map((o) => toApply.find((d) => orderKey(d.fresh) === orderKey(o))?.fresh ?? o),
+      duplicateImports: s.duplicateImports.filter((d) => !fileNames.includes(d.fileName)),
+    }));
+    for (const d of toApply) void persistAndLog(d.fresh, `Replaced by re-import of ${d.fileName}`);
+  },
+
+  dismissDuplicates() {
+    set({ duplicateImports: [] });
+  },
+
+  reopenReview(key) {
+    set((s) => ({
+      orders: s.orders.map((o) => {
+        if (orderKey(o) !== key || o.status === 'needs_review') return o;
+        const next = { ...o, status: 'needs_review' as const };
+        void persistAndLog(next, 'Review reopened');
+        return next;
+      }),
+    }));
   },
 
   setSelection(sel) {
