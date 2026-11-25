@@ -639,3 +639,8 @@ a.side-ghost.active, a.side-ghost:hover { opacity: 1; }
 .cropx-card .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; font-size: 10.5px; }
 .cropx-card .fname { word-break: break-all; }
 .cropx-card .btn { align-self: flex-start; margin-top: 6px; }
+.cropx-card .actions { display: flex; gap: 6px; margin-top: 6px; }
+.cropx-card .actions .btn { margin-top: 0; }
+.cropx-card.editing { border-color: var(--accent); outline: 1.5px solid var(--accent); outline-offset: -1.5px; }
+.cropx-editor { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.cropx-editor .head { display: flex; align-items: center; gap: 10px; align-self: stretch; margin-bottom: 8px; font-size: 10.5px; }

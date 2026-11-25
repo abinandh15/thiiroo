@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '../components/common';
-import { parseOrderZip } from '../lib/ingest';
+import { CropControls, CropFrame, reframeKey, useReframe } from '../components/CropEditor';
+import { cropPhoto, parseOrderZip } from '../lib/ingest';
 import { buildStoredZip } from '../lib/zip';
 import { blobUrl } from '../lib/format';
-import { DPI_FLOOR } from '../lib/geometry';
-import type { Order, Photo } from '../lib/types';
+import { DPI_FLOOR, printDpi } from '../lib/geometry';
+import type { Order, Photo, Placement } from '../lib/types';
 
 /** "Image 1" + "IMG_0042.jpeg" -> "Image 1_IMG_0042.jpg" */
 function cropFileName(p: Photo): string {
@@ -35,6 +36,7 @@ export function CropExport() {
     setBusy(true);
     setError('');
     setOrder(null);
+    setEditId(null);
     setStatus(`Reading ${file.name}…`);
     try {
       const o = await parseOrderZip(file, (done, total) => setStatus(`Cropping ${done} of ${total}…`));
@@ -49,6 +51,39 @@ export function CropExport() {
   };
 
   const crops = order ? order.photos.filter((p) => !p.missing) : [];
+
+  // per-photo re-framing, same controls as Review; the adjusted crop replaces the download
+  const [editId, setEditId] = useState<string | null>(null);
+  const editing = order?.photos.find((p) => p.id === editId && !p.missing);
+  const cropSeq = useRef(0);
+  const onReframe = useCallback(async (photo: Photo, placement: Placement | undefined) => {
+    const seq = ++cropSeq.current;
+    const eff = placement ?? photo.buyerPlacement;
+    const res = await cropPhoto(photo.sourceBlob, photo.crop, eff);
+    if (seq !== cropSeq.current) return; // a newer adjustment is already on its way
+    setOrder((o) =>
+      o && {
+        ...o,
+        photos: o.photos.map((p) =>
+          p.id === photo.id
+            ? { ...p, override: placement, cropBlob: res.blob, cropW: res.w, cropH: res.h, dpi: printDpi(p.crop.w, eff.scale) }
+            : p
+        ),
+      }
+    );
+  }, []);
+  const rf = useReframe(editing, onReframe);
+
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+      if (reframeKey(e, rf)) return;
+      if (e.key === 'Escape') setEditId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const downloadAll = async () => {
     if (!order || !crops.length) return;
@@ -143,9 +178,24 @@ export function CropExport() {
               </div>
             </div>
 
+            {editing && (
+              <div className="card card-pad cropx-editor">
+                <div className="head">
+                  <span className="card-title">Adjust {editing.label}</span>
+                  <span className="mono faint">
+                    {rf.dpi} DPI{editing.override ? ' · adjusted' : ' · buyer framing'}
+                  </span>
+                  <span style={{ flex: 1 }} />
+                  <button className="btn sm" onClick={() => setEditId(null)}>Done</button>
+                </div>
+                <CropFrame photo={editing} r={rf} />
+                <CropControls photo={editing} r={rf} />
+              </div>
+            )}
+
             <div className="cropx-grid">
               {order.photos.map((p) => (
-                <div key={p.id} className="card cropx-card">
+                <div key={p.id} className={`card cropx-card${p.id === editId ? ' editing' : ''}`}>
                   <div className="thumbwrap">
                     {p.missing ? (
                       <span className="mono faint">image not in zip</span>
@@ -166,9 +216,15 @@ export function CropExport() {
                             {p.dpi} DPI{p.dpi < DPI_FLOOR ? ' — low for print' : ''}
                           </span>
                         </div>
-                        <button className="btn sm" onClick={() => download(p.cropBlob, cropFileName(p))}>
-                          Download
-                        </button>
+                        {p.override && <div className="mono faint">adjusted from buyer framing</div>}
+                        <div className="actions">
+                          <button className="btn sm" onClick={() => setEditId(p.id === editId ? null : p.id)}>
+                            {p.id === editId ? 'Done' : 'Adjust'}
+                          </button>
+                          <button className="btn sm" onClick={() => download(p.cropBlob, cropFileName(p))}>
+                            Download
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
