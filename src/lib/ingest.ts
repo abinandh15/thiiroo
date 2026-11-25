@@ -1,6 +1,7 @@
 import { readZip } from './zip';
 import { printDpi } from './geometry';
 import type { Order, Photo, Placement } from './types';
+import { packWarning } from '../products';
 
 export const CROP_OUT_W = 1095;
 export const CROP_OUT_H = 1300;
@@ -160,10 +161,14 @@ export async function parseOrderZip(
   if (missingCount)
     warnings.push(`${missingCount} image${missingCount > 1 ? 's' : ''} referenced but missing from zip`);
 
+  const asin = (meta.asin as string) || '';
+  const packWarn = packWarning({ asin, photos });
+  if (packWarn) warnings.push(packWarn);
+
   return {
     id: orderId,
     itemId,
-    asin: (meta.asin as string) || '',
+    asin,
     title: (meta.title as string) || '',
     qty: (meta.quantity as number) ?? 1,
     zipName: file.name,

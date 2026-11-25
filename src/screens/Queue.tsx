@@ -4,6 +4,7 @@ import { orderKey, sheetCount, useStore } from '../store';
 import type { Order } from '../lib/types';
 import { blobUrl, timeHM } from '../lib/format';
 import { ImportButton, StatusPill, ThemeToggle } from '../components/common';
+import { packSizeOf, packWarning } from '../products';
 
 type Filter = 'all' | 'review' | 'ready' | 'printed';
 
@@ -235,8 +236,9 @@ export function Queue() {
                         <span className="mono faint" style={{ marginLeft: 'auto' }}>×{o.qty}</span>
                       </div>
                       <div className="qcard-meta mono faint">
-                        Item {o.itemId} · {o.photos.length} JPGs · {timeHM(o.importedAt)}
+                        Item {o.itemId} · {packSizeOf(o) ? `pack of ${packSizeOf(o)} · ` : ''}{o.photos.length} JPGs · {timeHM(o.importedAt)}
                       </div>
+                      {packWarning(o) && <div className="warnline">{packWarning(o)}</div>}
                       {lowDpi > 0 && <div className="warnline">{lowDpi} photo{lowDpi > 1 ? 's' : ''} below 150 DPI</div>}
                       {missing > 0 && <div className="warnline">{missing} image{missing > 1 ? 's' : ''} missing from zip</div>}
                       <div className="qcard-foot">
@@ -274,8 +276,9 @@ export function Queue() {
                   <span>
                     <div>
                       Item <span className="mono">{o.itemId}</span>{' '}
-                      <span className="faint mono">· {o.photos.length} buyer JPGs</span>
+                      <span className="faint mono">· {packSizeOf(o) ? `pack of ${packSizeOf(o)} · ` : ''}{o.photos.length} buyer JPGs</span>
                     </div>
+                    {packWarning(o) && <div className="warnline">{packWarning(o)}</div>}
                     {lowDpi > 0 && <div className="warnline">{lowDpi} photo{lowDpi > 1 ? 's' : ''} below 150 DPI</div>}
                     {missing > 0 && <div className="warnline">{missing} image{missing > 1 ? 's' : ''} referenced but missing from zip</div>}
                   </span>

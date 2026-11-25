@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { allApproved, effectivePlacement, orderKey, sheetsPerCopy, useStore } from '../store';
+import { packSizeOf, packWarning } from '../products';
 import type { Order, Photo, Placement } from '../lib/types';
 import { blobUrl, truncateMiddle } from '../lib/format';
 import { DPI_FLOOR, PHOTO, printDpi, SLOTS_PER_SHEET } from '../lib/geometry';
@@ -406,7 +407,9 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
             <div className="card-title" style={{ marginBottom: 8 }}>Order</div>
             <div className="kv"><span className="k">item</span><span className="v">{order.itemId}</span></div>
             <div className="kv"><span className="k">qty</span><span className="v">{order.qty}</span></div>
-            <div className="kv"><span className="k">photos</span><span className="v">{order.photos.length} of {SLOTS_PER_SHEET} slots</span></div>
+            <div className="kv"><span className="k">pack</span><span className="v">{packSizeOf(order) ?? 'unknown ASIN'}</span></div>
+            <div className="kv"><span className="k">photos</span><span className="v">{order.photos.length} of {packSizeOf(order) ?? SLOTS_PER_SHEET}</span></div>
+            {packWarning(order) && <div className="warnline">{packWarning(order)}</div>}
             <div className="kv">
               <span className="k">sheets</span>
               <span className="v">
