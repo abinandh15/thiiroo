@@ -7,6 +7,8 @@ import { blobUrl } from '../lib/format';
 export interface GuideOptions {
   greyBars: boolean;
   cropMarks: boolean;
+  /** thin red cut guides flowing across the whole sheet at every card edge (as in the Illustrator file) */
+  cutLines: boolean;
   orderId: boolean;
   slotNumbers: boolean;
 }
@@ -29,7 +31,7 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
   const [dragSlot, setDragSlot] = useState<number | null>(null);
   const [overSlot, setOverSlot] = useState<number | null>(null);
   const u = (v: number) => (unit === 'mm' ? `${v}mm` : `${Math.round(v * unit * 100) / 100}px`);
-  const markLen = 4; // mm, drawn inside the sheet edges
+  const markLen = 2; // mm, drawn inside the sheet edges
   const markThick = unit === 'mm' ? '0.15mm' : '1px';
 
   const c = t.custom;
@@ -50,7 +52,7 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
             top: u(t.idZone.y),
             width: u(t.idZone.w),
             height: u(t.idZone.h),
-            fontSize: unit === 'mm' ? '3mm' : `${unit * 3}px`,
+            fontSize: unit === 'mm' ? '4mm' : `${unit * 4}px`,
           }}
         >
           {model.orderIds.join('  ·  ')}
@@ -89,7 +91,7 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
         {c.cuts.map((r, i) => (
           <div
             key={`cut${i}`}
-            className="cutline screen-only"
+            className="cutbox screen-only"
             style={{ left: u(r.x), top: u(r.y), width: u(r.w), height: u(r.h) }}
           />
         ))}
@@ -114,6 +116,11 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
     );
   }
 
+  // the printed frame spans the grey strips; red cut guides live only in the bare margins outside it
+  const frameL = t.hStrips.length ? Math.min(...t.hStrips.map((s) => s.x)) : markLen;
+  // const frameR = t.hStrips.length ? Math.max(...t.hStrips.map((s) => s.x + s.w)) : t.sheet.w - markLen;
+  const frameR = t.hStrips.length ? 5 : t.sheet.w - markLen;
+
   return (
     <div
       className="sheet"
@@ -135,6 +142,14 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
             style={{ left: u(b.x), width: u(b.w), top: u(b.y), height: u(b.h) }}
           />
         ))}
+
+      {/* red cut guides: short ticks in the outer margins only — never across the print area */}
+      {guides.cutLines && rowEdges.map((y, i) => (
+        <span key={`cl${i}`}>
+          <i className="cutline" style={{ top: u(y), left: 0, width: u(frameL), height: markThick }} />
+          <i className="cutline" style={{ top: u(y), left: u(frameR), width: u(t.sheet.w - frameR), height: markThick }} />
+        </span>
+      ))}
 
       {Array.from({ length: slotsPerSheet(t) }, (_, slot) => {
         const r = slotRect(slot, t);

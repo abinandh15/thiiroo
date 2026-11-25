@@ -19,7 +19,7 @@ export const H_STRIPS = [
   { x: 16.6, w: 263.8, y: 0, h: 6.8 },
   { x: 16.6, w: 263.8, y: 203.2, h: 6.8 },
 ];
-export const ID_ZONE = { x: 281.5, y: 53, w: 10, h: 104 }; // rotated order-id text zone
+export const ID_ZONE = { x: 281.5, y: 80, w: 10, h: 104 }; // rotated order-id text zone (centred ~27mm below sheet middle)
 
 export const SLOTS_PER_SHEET = 6;
 

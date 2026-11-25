@@ -14,6 +14,11 @@ export function Queue() {
   const failedImports = useStore((s) => s.failedImports);
   const retryFailed = useStore((s) => s.retryFailed);
   const dismissFailed = useStore((s) => s.dismissFailed);
+  const duplicateImports = useStore((s) => s.duplicateImports);
+  const replaceDuplicates = useStore((s) => s.replaceDuplicates);
+  const dismissDuplicates = useStore((s) => s.dismissDuplicates);
+  const reopenReview = useStore((s) => s.reopenReview);
+  const removeOrder = useStore((s) => s.removeOrder);
   const selection = useStore((s) => s.selection);
   const setSelection = useStore((s) => s.setSelection);
   const importFiles = useStore((s) => s.importFiles);
@@ -99,7 +104,7 @@ export function Queue() {
   }
 
   const importing = importQueue.filter((q) => q.state === 'decoding' || q.state === 'queued');
-  const doneCount = importQueue.filter((q) => q.state === 'done').length;
+  const doneCount = importQueue.filter((q) => q.state === 'done' || q.state === 'skipped').length;
 
   return (
     <div
@@ -161,6 +166,29 @@ export function Queue() {
           <div className="actions">
             <button className="btn sm" onClick={() => void retryFailed()}>Retry</button>
             <button className="btn sm" onClick={dismissFailed}>Dismiss</button>
+          </div>
+        </div>
+      )}
+
+      {duplicateImports.length > 0 && (
+        <div className="banner-warn">
+          <div className="t">
+            {duplicateImports.length} zip{duplicateImports.length > 1 ? 's' : ''} matched order
+            {duplicateImports.length > 1 ? 's' : ''} already in the queue — kept the existing version
+            {duplicateImports.length > 1 ? 's' : ''}
+          </div>
+          {duplicateImports.map((d) => (
+            <div key={d.fileName} className="row">
+              {d.fileName} — <span style={{ color: 'var(--ink-muted)' }}>
+                existing order is {d.existingStatus.replace('_', ' ')}; replacing discards its review work
+              </span>
+            </div>
+          ))}
+          <div className="actions">
+            <button className="btn sm" onClick={() => replaceDuplicates(duplicateImports.map((d) => d.fileName))}>
+              Replace anyway
+            </button>
+            <button className="btn sm" onClick={dismissDuplicates}>Keep existing</button>
           </div>
         </div>
       )}
@@ -325,11 +353,42 @@ export function Queue() {
               >
                 Review selected
               </button>
+              {selectedOrders.some((o) => o.status === 'ready' || o.status === 'printed' || o.status === 'done') && (
+                <button
+                  className="btn sm"
+                  title="Send back through the review gate (approvals are kept)"
+                  onClick={() => {
+                    const past = selectedOrders.filter(
+                      (o) => o.status === 'ready' || o.status === 'printed' || o.status === 'done'
+                    );
+                    for (const o of past) reopenReview(orderKey(o));
+                    navigate(`/p/instant-photo-prints/review/${encodeURIComponent(orderKey(past[0]))}`);
+                  }}
+                >
+                  Reopen review
+                </button>
+              )}
               <button
                 className="btn sm"
                 onClick={() => markPrinted(selectedOrders.map(orderKey), false)}
               >
                 Mark printed
+              </button>
+              <button
+                className="btn sm"
+                title="Delete the selected orders and their activity history"
+                onClick={() => {
+                  const n = selectedOrders.length;
+                  const ok = window.confirm(
+                    `Remove ${n} order${n > 1 ? 's' : ''} from the dashboard?\n\n` +
+                      'Photos, review work and activity history are discarded. ' +
+                      'Re-importing the zip brings the order back as new.'
+                  );
+                  if (!ok) return;
+                  for (const o of selectedOrders) removeOrder(orderKey(o));
+                }}
+              >
+                Remove…
               </button>
               <button
                 className="btn sm white"
@@ -385,6 +444,8 @@ export function Queue() {
                   <div key={q.fileName} className={`import-item${q.state === 'error' ? ' err' : ''}`}>
                     {q.state === 'done' ? (
                       <span className="ok-mark">✓</span>
+                    ) : q.state === 'skipped' ? (
+                      <span className="faint">=</span>
                     ) : q.state === 'decoding' ? (
                       <span className="spin" />
                     ) : q.state === 'error' ? (
@@ -394,7 +455,11 @@ export function Queue() {
                     )}
                     <span className="nm">{q.fileName}</span>
                     <span className="st">
-                      {q.state === 'done' ? q.detail : q.state === 'decoding' ? q.detail ?? 'decoding' : q.state}
+                      {q.state === 'done' || q.state === 'skipped'
+                        ? q.detail
+                        : q.state === 'decoding'
+                          ? q.detail ?? 'decoding'
+                          : q.state}
                     </span>
                   </div>
                 ))}

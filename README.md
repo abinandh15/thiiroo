@@ -34,5 +34,5 @@ Dev-only URL hooks: `?sample=1` import sample, `?approveall=1`, `?printtest=1` m
 
 ## Roadmap
 
-- Phase 2: more products as pluggable pages; template editor.
+- Phase 2 (done): products as pluggable pages (`src/products` registry); live template editor with per-product overrides.
 - Phase 3: SP-API backend (order inbox, auto-download, mark shipped). Zip drop stays as fallback.

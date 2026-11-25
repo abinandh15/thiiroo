@@ -52,7 +52,7 @@ export function CustomProduct({ productId }: { productId: string }) {
           <Sheet
             model={emptyModel}
             unit={pxPerMm}
-            guides={{ greyBars: true, cropMarks: true, orderId: true, slotNumbers: true }}
+            guides={{ greyBars: true, cropMarks: true, cutLines: true, orderId: true, slotNumbers: true }}
             shadow
             template={t}
           />

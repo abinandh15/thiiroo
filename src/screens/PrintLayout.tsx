@@ -17,6 +17,7 @@ export function PrintLayout() {
   const combineMode = useStore((s) => s.combineMode);
   const setCombineMode = useStore((s) => s.setCombineMode);
   const swapPhotos = useStore((s) => s.swapPhotos);
+  const reopenReview = useStore((s) => s.reopenReview);
   const template = useStore((s) => effectiveTemplate(s, instantPhotoPrints.id));
 
   const key = rawKey ? decodeURIComponent(rawKey) : undefined;
@@ -62,6 +63,16 @@ export function PrintLayout() {
         </span>
         <span className="spacer" />
         <ThemeToggle />
+        <button
+          className="btn"
+          title="Send back through the review gate (approvals are kept)"
+          onClick={() => {
+            reopenReview(k);
+            navigate(`/p/instant-photo-prints/review/${encodeURIComponent(k)}`);
+          }}
+        >
+          Reopen review
+        </button>
         <button className="btn" onClick={() => printSheets(sheets, [k])} title="Use the dialog's 'Save as PDF' destination">
           Export PDF
         </button>
@@ -124,6 +135,7 @@ export function PrintLayout() {
               [
                 ['greyBars', 'Grey cut-waste bars'],
                 ['cropMarks', 'Crop marks'],
+                ['cutLines', 'Cut guide lines (red)'],
                 ['orderId', 'Order ID in right margin'],
                 ['slotNumbers', 'Slot numbers (screen only)'],
               ] as const
