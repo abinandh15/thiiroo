@@ -3,10 +3,63 @@
 Production dashboard for Thiiroo (Amazon India seller, merchant A3K5KSR5J1JHDD) that turns Amazon
 customization order zips into ready-to-print A4 sheets. Owner: Abinandh (senior frontend engineer).
 
+## Handoff — read this first (written 2026-11-25, when work moved to another machine)
+
+**Where the code is.** Latest work is on branch `feature/add-product` (pushed to
+`github.com/abinandh15/thiiroo`), with `origin/main` already merged in. No PR is open yet; `main`
+on GitHub does not have it. Start with `git checkout feature/add-product && npm install`.
+
+**What that branch adds on top of `main`** (details in the dated notes further down):
+1. Pack sizes — all five photo-print ASINs in the registry; Queue/Review show "pack of N" and warn
+   on a photo-count mismatch or unknown ASIN.
+2. Add product — `/add-product` turns a template SVG into a saved custom product.
+
+**Next step, agreed in direction but not started:** route orders to custom (SVG-built) products.
+Today Queue/Review/PrintLayout/BatchPrint/PrintRoot import `instantPhotoPrints` directly, about 15
+navigations hardcode `/p/instant-photo-prints/...`, `sheets.ts` and `store.ts` use
+`SLOTS_PER_SHEET` (6), and `printDpi` uses `PHOTO.w`. The plan: resolve an order's product with
+`findByAsin(order.asin)`, filter each product's Queue by it, take slots-per-sheet and photo width
+from the product's template (`slotsPerSheet(t)` already handles `template.custom`), build one batch
+per product, and pass the product's template into the print job (`printSheets(…, template)` already
+accepts one and sets `@page` to the sheet size).
+
+**Open questions — ask Abinandh, do not assume:**
+- Does a 12/18/24/30-pack zip really contain that many photo placements? Only a 6-pack zip has ever
+  been seen. If Amazon sends fewer, the pack-mismatch warning is wrong for every large-pack order.
+- Add product has only been tested with a synthetic photo-strip SVG (4 strips × 4 frames). A real
+  Illustrator export from Abinandh has not been tried; he was asked for one.
+- Name labels (below) need a real order zip and the print sheet before anything can be built.
+- Nothing from this branch has been printed on paper.
+
+**The Amazon storefront, as browsed 2026-11-13** (store page 9E1B862E-C894-4FB4-A6F6-13F20DDCCCD8):
+- Custom Photo — Instant Photo Style Prints 4×3 in, customised (photo upload). Pack → ASIN:
+  6 `B0HB4CYFG3`, 12 `B0HB5VZ67B`, 18 `B0HB5MTKDP`, 24 `B0HB5KK63G`, 30 `B0HB5YQPCZ`.
+- Name Labels — 40 waterproof labels, 6.4×2 cm, customised (name + font), 9 styles:
+  Space-1 `B0FHRFZ1MJ`, Space-2 `B0FHVSQ8CV`, Cute Animals-1 `B0FHVZ6N8Z`, Cute Animals-2
+  `B0FHVP9DMT`, WC Animals-1 `B0FHVVJ9S4`, WC Animals-2 `B0FHVVPPRD`, combos: Cute Animals
+  `B0FHVVMMT7`, Space `B0FHVNZD8B`, WC Animals `B0FHVSZHLS`. Not in the app. This is a text
+  product (name over themed artwork), so it needs a different template kind than a photo crop;
+  the "Customise now" fields were not inspected (needs sign-in).
+- Business Stickers — Thank You strip/round and "Handmade with Love". Fixed designs, plain
+  add-to-cart, nothing per-order to generate; the dashboard does not need them.
+- Abinandh's stated goal: "make my life easier, to build templates and fulfill orders" across
+  the shop, photo strips being the example he gave for a new product.
+
+**Does not travel with git** (lives only on the first machine unless copied by hand):
+`public/sample-order.zip` (real buyer data — needed for `?sample=1` and the e2e check), the
+Phase 3 `.env`, the design handoff folder referenced under Conventions, the Illustrator reference
+`1.pdf`, and all browser data (imported orders in IndexedDB; template overrides and custom products
+in localStorage). There is no export/import for browser data yet.
+
+**Machine notes.** Node 20.12.x is why Vite is pinned to v5. `.claude/launch.json` defines the
+`dashboard` dev server (port 5173) for the Claude preview pane. On the first machine `gh` was
+logged in as a different account with a bad token; plain `git push` over HTTPS worked. Console
+500s on `/api/status` just mean the Phase 3 backend (`npm run server`) is not running.
+
 ## State (Phase 1 + polish + Phase 2 complete, verified end-to-end 2026-07-30)
 
 Vite + React 18 + TS + zustand + idb + react-router (HashRouter). Local-first; IndexedDB persistence;
-no backend yet. Node on this machine is 20.12.1 — that's why Vite is pinned to v5 (Vite 7+ needs newer Node).
+no backend in the core flow (Phase 3 proxy is optional). Node on the original machine is 20.12.1 — that's why Vite is pinned to v5 (Vite 7+ needs newer Node).
 
 Working flow: import zips → Queue → Review (hard approval gate, drag/zoom/rotate re-frame) →
 Print layout / Batch print → browser print via mm-exact CSS (`@page 297mm 210mm`) or Save-as-PDF.
@@ -32,7 +85,11 @@ template (`1.pdf` in Downloads) dimensionally.
 - `src/store.ts` — zustand store: orders, import queue with retry, selection, batch order,
   guides toggles, theme, template overrides. `orderKey(o)` = `id::itemId`. Status machine in
   `recomputeStatus` (`needs_review`/`ready` derived; `printed`/`done`/`held` sticky).
-- `src/products/index.ts` — Phase 2 registry; single product so far (`instant-photo-prints`, ASIN B0HB4CYFG3).
+- `src/products/index.ts` — registry: `BUILTIN_PRODUCTS` (`instant-photo-prints`, with one
+  `variants` entry per pack-size ASIN) + custom products from localStorage; `listProducts()`,
+  `getProduct()`, `findByAsin()`, `packSizeOf()`, `packWarning()`, `newProductId()`.
+- `src/lib/svgTemplate.ts` — SVG → template: `parseSvgTemplate()`, `rescale()`, `orderedPhotos()`,
+  `buildTemplate()`.
 - `src/lib/zip.ts` — dependency-free zip read/write (DecompressionStream).
 - `src/lib/ingest.ts` — order JSON walker + crop pipeline (EXIF-oriented).
 - `src/lib/geometry.ts` — mm template constants + `TemplateDescriptor`, `deriveWaste()`, `slotRect()`, `printDpi()`.
@@ -41,7 +98,8 @@ template (`1.pdf` in Downloads) dimensionally.
 - `src/components/Sheet.tsx` — renders a sheet at any px/mm scale or true mm for print;
   `PrintRoot.tsx` mounts print-only DOM driven by `src/lib/printJob.ts`.
 - Screens: `Overview` (stats + activity), `Queue` (drop zone, rows/cards), `Review`, `PrintLayout`,
-  `BatchPrint`, `Template` (live editor).
+  `BatchPrint`, `Template` (live editor, built-in product only), `AddProduct` (`/add-product`),
+  `CustomProduct` (`/p/:id/template` for SVG-built products).
 
 ## Conventions
 
@@ -90,12 +148,23 @@ template (`1.pdf` in Downloads) dimensionally.
   card geometry (exact vs Illustrator); Template screen is a live editor, overrides persisted per
   product in localStorage (`thiiroo-template-overrides`) via `effectiveTemplate()`.
 
-- Add product (done, template only): `/add-product` takes a template SVG; `src/lib/svgTemplate.ts`
+- Pack sizes (done 2026-11-25): `Product.variants` lists every child ASIN with its pack size.
+  Pack size is derived from the order's stored ASIN at render time (not stored on the order), so
+  old orders get it too. `packWarning()` feeds a warn line in Queue rows/cards and Review, and
+  is also pushed into `order.warnings` at import.
+- Add product (done 2026-11-25, template only): `/add-product` takes a template SVG; `src/lib/svgTemplate.ts`
   measures every shape ≥5 mm in the browser (getBBox + CTM, so transforms/paths work), guesses roles
   (photo frame / cut outline / ignored) from nesting, and the user corrects them by clicking. Saved as a
   custom `Product` (`custom: true`, `template.custom` = free-form `CustomLayout`) in localStorage
   (`thiiroo-custom-products`); `Sheet.tsx` renders `template.custom` when present. Unitless SVGs are
   read as 72/in (Illustrator) unless they match a paper size at 96/in.
+  Role guessing: a shape that contains others = cut outline, shapes inside one = photo frame,
+  the rest ignored; a shape's own id/data-name can override (photo/cut/guide keywords), a layer
+  name only when geometry is silent. Click cycles the role for every shape of that size, alt-click
+  for one. Fill order = cut pieces in reading order, frames within each piece in reading order.
+  Scripts, foreignObject and on* attributes are stripped before the SVG is mounted or stored.
+  Artwork over ~1.5 MB is not stored (layout only). In `Sheet.tsx` the custom cut outline class is
+  `.cutbox` — `.cutline` belongs to the red cut-guide ticks.
 - NOT done: orders are not routed to custom products. Queue/Review/Print, `sheets.ts`
   (`SLOTS_PER_SHEET`) and `printDpi` are still hardwired to Instant Photo Prints.
 
