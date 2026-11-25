@@ -56,6 +56,30 @@ in localStorage). There is no export/import for browser data yet.
 logged in as a different account with a bad token; plain `git push` over HTTPS worked. Console
 500s on `/api/status` just mean the Phase 3 backend (`npm run server`) is not running.
 
+## Model routing — delegate by task, don't do everything on the session model
+
+The session model cannot switch itself mid-task; routing happens by handing work to the
+project agents in `.claude/agents/`, each pinned to the model that suits it. Pick by what the
+task needs, not by its size:
+
+| Task | Agent | Model | Why |
+| --- | --- | --- | --- |
+| Find code, list usages, summarize a file/diff/log | `scout` | Haiku | Fast and cheap; no judgment needed |
+| Type-check, build, e2e run | `checker` | Haiku | Mechanical; reports output verbatim |
+| Well-specified UI/CSS/wiring/refactor that follows an existing pattern | `builder` | Sonnet | Strong everyday coding at lower cost |
+| Crop math, mm geometry, SVG parsing, sheet packing, status machine, persistence, SP-API — design, review or root-cause | `print-engineer` | Opus | Deep reasoning where a wrong number wastes paper |
+
+Rules:
+- Stay in the main session for conversation, planning, one-file edits and anything a
+  handful of tool calls settles — a hand-off costs more than it saves there.
+- Changes to `geometry.ts`, `ingest.ts`, `sheets.ts`, `svgTemplate.ts`, `Sheet.tsx` or
+  `recomputeStatus` get a `print-engineer` review before commit.
+- A feature that is part plumbing, part print logic is split: `print-engineer` designs the
+  risky part, `builder` implements the rest, `checker` verifies.
+- Independent pieces go out in parallel in one message. Never give two agents the same files.
+- An agent's report is not proof: read the diff before telling Abinandh it is done.
+- Browser checks (preview pane) stay in the main session — the agents do not drive it.
+
 ## State (Phase 1 + polish + Phase 2 complete, verified end-to-end 2026-07-30)
 
 Vite + React 18 + TS + zustand + idb + react-router (HashRouter). Local-first; IndexedDB persistence;
