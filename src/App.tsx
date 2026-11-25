@@ -12,6 +12,7 @@ import { Template } from './screens/Template';
 import { BUILTIN_PRODUCTS } from './products';
 import { AddProduct } from './screens/AddProduct';
 import { CustomProduct } from './screens/CustomProduct';
+import { CropExport } from './screens/CropExport';
 
 /** Dev-only helpers driven by query params: ?sample=1 imports public/sample-order.zip,
  *  ?approveall=1 approves everything, ?printtest=1 mounts print sheets for print-to-pdf checks. */
@@ -92,6 +93,7 @@ export default function App() {
             <Route key={p.id} path={`/p/${p.id}/template`} element={<CustomProduct productId={p.id} />} />
           ))}
           <Route path="/add-product" element={<AddProduct />} />
+          <Route path="/crop-export" element={<CropExport />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

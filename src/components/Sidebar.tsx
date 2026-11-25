@@ -111,6 +111,9 @@ export function Sidebar() {
         + Add product
       </NavLink>
 
+      <div className="side-label">Tools</div>
+      {link('/crop-export', 'Crop export')}
+
       <AmazonCard />
     </nav>
   );
