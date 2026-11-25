@@ -3,7 +3,8 @@ import type { ActivityEvent, ImportProgress, Order, Photo, Placement } from './l
 import { cropPhoto, parseOrderZip } from './lib/ingest';
 import { printDpi, SLOTS_PER_SHEET } from './lib/geometry';
 import type { TemplateDescriptor } from './lib/geometry';
-import { getProduct } from './products';
+import { getCustomProducts, getProduct, saveCustomProducts } from './products';
+import type { Product } from './products';
 import { deleteOrder, loadActivity, loadOrders, logActivity, saveOrder } from './lib/persist';
 
 export const orderKey = (o: Pick<Order, 'id' | 'itemId'>) => `${o.id}::${o.itemId}`;
@@ -40,6 +41,8 @@ interface AppState {
   guides: { greyBars: boolean; cropMarks: boolean; orderId: boolean; slotNumbers: boolean };
   /** per-product template overrides (edited in the Template screen); absent = factory template */
   templateOverrides: Record<string, TemplateDescriptor>;
+  /** products created from an SVG on this machine (Add product) */
+  customProducts: Product[];
 
   init(): Promise<void>;
   importFiles(files: File[]): Promise<void>;
@@ -59,6 +62,9 @@ interface AppState {
   setGuide(g: keyof AppState['guides'], v: boolean): void;
   setTemplateOverride(productId: string, t: TemplateDescriptor): void;
   resetTemplateOverride(productId: string): void;
+  /** add or replace a custom product; returns an error message when it cannot be stored */
+  saveProduct(p: Product): string | null;
+  removeProduct(productId: string): void;
 }
 
 const TEMPLATE_LS_KEY = 'thiiroo-template-overrides';
@@ -100,6 +106,7 @@ export const useStore = create<AppState>((set, get) => ({
   theme: (localStorage.getItem('thiiroo-theme') as 'light' | 'dark') || 'light',
   guides: { greyBars: true, cropMarks: true, orderId: true, slotNumbers: false },
   templateOverrides: loadTemplateOverrides(),
+  customProducts: getCustomProducts(),
 
   async init() {
     if (get().loaded) return;
@@ -283,5 +290,23 @@ export const useStore = create<AppState>((set, get) => ({
       localStorage.setItem(TEMPLATE_LS_KEY, JSON.stringify(templateOverrides));
       return { templateOverrides };
     });
+  },
+
+  saveProduct(p) {
+    const next = [...get().customProducts.filter((x) => x.id !== p.id), p];
+    try {
+      saveCustomProducts(next);
+    } catch {
+      return 'Not enough browser storage to save this product. Save it without the SVG artwork.';
+    }
+    set({ customProducts: next });
+    return null;
+  },
+
+  removeProduct(productId) {
+    const next = get().customProducts.filter((x) => x.id !== productId);
+    saveCustomProducts(next);
+    set({ customProducts: next });
+    get().resetTemplateOverride(productId);
   },
 }));

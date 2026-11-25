@@ -35,6 +35,27 @@ export interface TemplateDescriptor {
   vBars: { x: number; w: number }[];
   hStrips: { x: number; w: number; y: number; h: number }[];
   idZone: { x: number; y: number; w: number; h: number };
+  /** Free-form layout built from an imported SVG (Add product). When present it replaces
+   *  the card grid: the grid fields above are kept only as informational defaults. */
+  custom?: CustomLayout;
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface CustomLayout {
+  /** photo frames in fill order, sheet coordinates in mm */
+  photos: Rect[];
+  /** cut outlines (cards, strips) in mm — drive the outline and crop marks */
+  cuts: Rect[];
+  /** the source SVG as a data URL, drawn full-sheet underneath the photos */
+  artwork?: string;
+  /** whether the artwork is printed, or only the photos */
+  printArtwork: boolean;
 }
 
 /** Recompute the grey cut-waste bars from card geometry. The constants reproduce
@@ -78,7 +99,7 @@ export const DEFAULT_TEMPLATE: TemplateDescriptor = {
 };
 
 export function slotsPerSheet(t: TemplateDescriptor): number {
-  return t.colX.length * t.rowTop.length;
+  return t.custom ? t.custom.photos.length : t.colX.length * t.rowTop.length;
 }
 
 /** slot order: top row L->R then bottom row L->R */

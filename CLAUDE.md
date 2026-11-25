@@ -42,6 +42,15 @@ template (`1.pdf` in Downloads) dimensionally.
   card geometry (exact vs Illustrator); Template screen is a live editor, overrides persisted per
   product in localStorage (`thiiroo-template-overrides`) via `effectiveTemplate()`.
 
+- Add product (done, template only): `/add-product` takes a template SVG; `src/lib/svgTemplate.ts`
+  measures every shape ≥5 mm in the browser (getBBox + CTM, so transforms/paths work), guesses roles
+  (photo frame / cut outline / ignored) from nesting, and the user corrects them by clicking. Saved as a
+  custom `Product` (`custom: true`, `template.custom` = free-form `CustomLayout`) in localStorage
+  (`thiiroo-custom-products`); `Sheet.tsx` renders `template.custom` when present. Unitless SVGs are
+  read as 72/in (Illustrator) unless they match a paper size at 96/in.
+- NOT done: orders are not routed to custom products. Queue/Review/Print, `sheets.ts`
+  (`SLOTS_PER_SHEET`) and `printDpi` are still hardwired to Instant Photo Prints.
+
 ## Roadmap
 
 - Phase 3: small Node backend for Amazon SP-API (LWA OAuth) — orders inbox replaces manual drop

@@ -32,8 +32,87 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
   const markLen = 4; // mm, drawn inside the sheet edges
   const markThick = unit === 'mm' ? '0.15mm' : '1px';
 
-  const columnEdges = [...new Set(t.colX.flatMap((x) => [x, x + t.card.w]))];
-  const rowEdges = [...new Set([...t.rowTop, t.rowTop[t.rowTop.length - 1] + t.card.h])];
+  const c = t.custom;
+  const columnEdges = c
+    ? [...new Set(c.cuts.flatMap((r) => [r.x, r.x + r.w]))]
+    : [...new Set(t.colX.flatMap((x) => [x, x + t.card.w]))];
+  const rowEdges = c
+    ? [...new Set(c.cuts.flatMap((r) => [r.y, r.y + r.h]))]
+    : [...new Set([...t.rowTop, t.rowTop[t.rowTop.length - 1] + t.card.h])];
+
+  const margins = (
+    <>
+      {guides.orderId && t.idZone.w > 0 && (
+        <div
+          className="oid-margin"
+          style={{
+            left: u(t.idZone.x),
+            top: u(t.idZone.y),
+            width: u(t.idZone.w),
+            height: u(t.idZone.h),
+            fontSize: unit === 'mm' ? '3mm' : `${unit * 3}px`,
+          }}
+        >
+          {model.orderIds.join('  ·  ')}
+        </div>
+      )}
+
+      {guides.cropMarks && (
+        <>
+          {columnEdges.map((x, i) => (
+            <span key={`cmt${i}`}>
+              <i className="cropmark" style={{ left: u(x), top: 0, width: markThick, height: u(markLen) }} />
+              <i className="cropmark" style={{ left: u(x), bottom: 0, width: markThick, height: u(markLen) }} />
+            </span>
+          ))}
+          {rowEdges.map((y, i) => (
+            <span key={`cml${i}`}>
+              <i className="cropmark" style={{ top: u(y), left: 0, height: markThick, width: u(markLen) }} />
+              <i className="cropmark" style={{ top: u(y), right: 0, height: markThick, width: u(markLen) }} />
+            </span>
+          ))}
+        </>
+      )}
+    </>
+  );
+
+  // free-form layout imported from an SVG: artwork underneath, photo frames on top
+  if (c) {
+    return (
+      <div
+        className="sheet"
+        style={{ width: u(t.sheet.w), height: u(t.sheet.h), boxShadow: shadow ? 'var(--shadow-sheet)' : undefined }}
+      >
+        {c.artwork && (
+          <img className={`artwork${c.printArtwork ? '' : ' screen-only'}`} src={c.artwork} alt="" draggable={false} />
+        )}
+        {c.cuts.map((r, i) => (
+          <div
+            key={`cut${i}`}
+            className="cutline screen-only"
+            style={{ left: u(r.x), top: u(r.y), width: u(r.w), height: u(r.h) }}
+          />
+        ))}
+        {c.photos.map((r, slot) => {
+          const fill = model.slots[slot];
+          return (
+            <div
+              key={slot}
+              className={`cphoto${fill ? '' : ' blank'}`}
+              style={{ left: u(r.x), top: u(r.y), width: u(r.w), height: u(r.h) }}
+            >
+              {fill ? (
+                <img src={blobUrl(fill.photo.cropBlob)} alt={fill.photo.label} draggable={false} />
+              ) : (
+                guides.slotNumbers && <span className="screen-only">{slot + 1}</span>
+              )}
+            </div>
+          );
+        })}
+        {margins}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -110,37 +189,7 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
         );
       })}
 
-      {guides.orderId && (
-        <div
-          className="oid-margin"
-          style={{
-            left: u(t.idZone.x),
-            top: u(t.idZone.y),
-            width: u(t.idZone.w),
-            height: u(t.idZone.h),
-            fontSize: unit === 'mm' ? '3mm' : `${unit * 3}px`,
-          }}
-        >
-          {model.orderIds.join('  ·  ')}
-        </div>
-      )}
-
-      {guides.cropMarks && (
-        <>
-          {columnEdges.map((x, i) => (
-            <span key={`cmt${i}`}>
-              <i className="cropmark" style={{ left: u(x), top: 0, width: markThick, height: u(markLen) }} />
-              <i className="cropmark" style={{ left: u(x), bottom: 0, width: markThick, height: u(markLen) }} />
-            </span>
-          ))}
-          {rowEdges.map((y, i) => (
-            <span key={`cml${i}`}>
-              <i className="cropmark" style={{ top: u(y), left: 0, height: markThick, width: u(markLen) }} />
-              <i className="cropmark" style={{ top: u(y), right: 0, height: markThick, width: u(markLen) }} />
-            </span>
-          ))}
-        </>
-      )}
+      {margins}
     </div>
   );
 }

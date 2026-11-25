@@ -558,3 +558,41 @@ a { color: var(--accent); text-decoration: none; }
 }
 .tmpl-field input:focus { outline: none; border-color: var(--accent); }
 .tmpl-field .u { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); width: 20px; }
+
+/* ---- Add product: free-form templates imported from an SVG ---- */
+.sheet .artwork { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sheet .cutline { position: absolute; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.3); pointer-events: none; }
+.sheet .cphoto { position: absolute; overflow: hidden; background: #f1efec; }
+.sheet .cphoto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sheet .cphoto.blank {
+  background: none; border: 1px dashed rgba(0, 0, 0, 0.25); display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; color: rgba(0, 0, 0, 0.45);
+}
+@media print {
+  .print-root .sheet .cphoto.blank { border: none; }
+}
+a.side-ghost { display: block; text-decoration: none; }
+a.side-ghost.active, a.side-ghost:hover { opacity: 1; }
+
+.addp-canvas svg { display: block; width: 100%; height: auto; background: #fff; box-shadow: var(--shadow-sheet); }
+.addp-canvas .shape { cursor: pointer; vector-effect: non-scaling-stroke; }
+.addp-canvas .shape.photo { fill: color-mix(in oklch, var(--accent) 28%, transparent); stroke: var(--accent); stroke-width: 1.5; }
+.addp-canvas .shape.cut { fill: transparent; stroke: #17181a; stroke-width: 1.5; stroke-dasharray: 6 3; }
+.addp-canvas .shape.ignore { fill: transparent; stroke: rgba(0, 0, 0, 0.3); stroke-width: 1; stroke-dasharray: 2 3; }
+.addp-canvas .shape:hover { stroke-width: 2.5; }
+.addp-canvas text { font-family: var(--font-mono); fill: var(--accent); pointer-events: none; font-weight: 600; }
+.addp-form { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+.addp-form label.f { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+.addp-form label.f > span { font-family: var(--font-mono); color: var(--ink-faint); font-size: 10.5px; }
+.addp-form input[type='text'], .addp-form textarea {
+  padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-btn);
+  background: var(--bg-panel); color: var(--ink); font-size: 12px; font-family: inherit; width: 100%;
+}
+.addp-form textarea { font-family: var(--font-mono); font-size: 11px; resize: vertical; min-height: 54px; }
+.addp-form input:focus, .addp-form textarea:focus { outline: none; border-color: var(--accent); }
+.addp-legend { display: flex; gap: 12px; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-muted); flex-wrap: wrap; }
+.addp-legend i { display: inline-block; width: 12px; height: 9px; margin-right: 5px; vertical-align: -1px; }
+.addp-legend i.photo { background: color-mix(in oklch, var(--accent) 28%, transparent); border: 1.5px solid var(--accent); }
+.addp-legend i.cut { border: 1.5px dashed var(--ink); }
+.addp-legend i.ignore { border: 1px dotted var(--ink-faint); }
+.addp-check { display: flex; gap: 8px; align-items: flex-start; font-size: 11px; line-height: 1.5; }

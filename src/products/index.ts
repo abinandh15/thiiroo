@@ -21,6 +21,8 @@ export interface Product {
   sizeLabel: string;
   /** verified factory template; per-machine edits live in the store as overrides */
   template: TemplateDescriptor;
+  /** true for products created in the app from an SVG (Add product); stored on this machine */
+  custom?: boolean;
 }
 
 export const instantPhotoPrints: Product = {
@@ -39,15 +41,51 @@ export const instantPhotoPrints: Product = {
   template: DEFAULT_TEMPLATE,
 };
 
-export const PRODUCTS: Product[] = [instantPhotoPrints];
+/** products that ship with the app */
+export const BUILTIN_PRODUCTS: Product[] = [instantPhotoPrints];
+
+const CUSTOM_LS_KEY = 'thiiroo-custom-products';
+
+function loadCustomProducts(): Product[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CUSTOM_LS_KEY) ?? '[]');
+    return Array.isArray(raw) ? raw.filter((p) => p && p.id && p.template) : [];
+  } catch {
+    return [];
+  }
+}
+
+let customProducts: Product[] = loadCustomProducts();
+
+export function getCustomProducts(): Product[] {
+  return customProducts;
+}
+
+/** Persist the custom product list. Throws when the browser's storage quota is exceeded. */
+export function saveCustomProducts(next: Product[]): void {
+  localStorage.setItem(CUSTOM_LS_KEY, JSON.stringify(next));
+  customProducts = next;
+}
+
+export function listProducts(): Product[] {
+  return [...BUILTIN_PRODUCTS, ...customProducts];
+}
 
 export function getProduct(id: string): Product | undefined {
-  return PRODUCTS.find((p) => p.id === id);
+  return listProducts().find((p) => p.id === id);
+}
+
+/** url-safe id from a product name, unique within the registry */
+export function newProductId(name: string): string {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'product';
+  let id = base;
+  for (let n = 2; getProduct(id); n++) id = `${base}-${n}`;
+  return id;
 }
 
 /** Resolve an order's ASIN (any pack size) to its product and variant. */
 export function findByAsin(asin: string): { product: Product; variant: ProductVariant } | undefined {
-  for (const product of PRODUCTS) {
+  for (const product of listProducts()) {
     const variant = product.variants.find((v) => v.asin === asin);
     if (variant) return { product, variant };
   }

@@ -1,10 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
-import { PRODUCTS } from '../products';
+import { BUILTIN_PRODUCTS } from '../products';
 
 export function Sidebar() {
   const orders = useStore((s) => s.orders);
   const location = useLocation();
+  const customProducts = useStore((s) => s.customProducts);
+  const products = [...BUILTIN_PRODUCTS, ...customProducts];
   const open = orders.filter((o) => o.status !== 'printed' && o.status !== 'done');
   const review = orders.filter((o) => o.status === 'needs_review' || o.status === 'held');
 
@@ -29,19 +31,19 @@ export function Sidebar() {
       {link('/', 'Overview', { end: true })}
 
       <div className="side-label">Products</div>
-      {PRODUCTS.map((p) => {
+      {products.map((p) => {
         const inProduct = location.pathname.startsWith(`/p/${p.id}`);
         return (
           <div key={p.id}>
-            <NavLink to={`/p/${p.id}/queue`} className={`side-row${inProduct ? ' active' : ''}`}>
+            <NavLink to={`/p/${p.id}/${p.custom ? 'template' : 'queue'}`} className={`side-row${inProduct ? ' active' : ''}`}>
               <span>
                 {p.name}
                 <span className="count" style={{ display: 'block', marginLeft: 0, textAlign: 'left' }}>
-                  {p.asin} · {p.sizeLabel}
+                  {[p.asin, p.sizeLabel].filter(Boolean).join(' · ')}
                 </span>
               </span>
             </NavLink>
-            {inProduct && (
+            {inProduct && !p.custom && (
               <div className="side-sub">
                 {link(`/p/${p.id}/queue`, 'Queue', { count: open.length })}
                 {link(`/p/${p.id}/review`, 'Review', { count: review.length, warn: true })}
@@ -52,7 +54,9 @@ export function Sidebar() {
           </div>
         );
       })}
-      <button className="side-ghost" title="A second listing plugs in as a new product module">+ Add product</button>
+      <NavLink to="/add-product" className={({ isActive }) => `side-ghost${isActive ? ' active' : ''}`}>
+        + Add product
+      </NavLink>
 
       <div className="side-amazon">
         <div className="t"><span className="dot" />Amazon — not connected</div>
