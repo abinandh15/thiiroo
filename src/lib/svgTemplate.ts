@@ -119,6 +119,14 @@ function guessRoles(shapes: DetectedShape[]): void {
   }
 }
 
+const NUM_RE = /[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?/g;
+const NUM_RE_ONCE = /^[\s,]*[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?/;
+
+/** split path data at each moveto; `rest` is everything after the M/m letter */
+function splitSubpaths(d: string): { relative: boolean; rest: string }[] {
+  return (d.match(/[Mm][^Mm]*/g) ?? []).map((seg) => ({ relative: seg[0] === 'm', rest: seg.slice(1) }));
+}
+
 /** Parse and measure an SVG. Must run in the browser: shapes are measured by the SVG engine,
  *  so transforms, groups and paths are all handled. Throws with a readable message. */
 export function parseSvgTemplate(text: string): ParsedSvg {
@@ -190,17 +198,16 @@ export function parseSvgTemplate(text: string): ParsedSvg {
   try {
     const origin = live.getBoundingClientRect();
     const els = live.querySelectorAll<SVGGraphicsElement>('rect, path, polygon, polyline, circle, ellipse, image, use');
-    for (const el of els) {
-      if (el.closest('defs, clipPath, mask, symbol, pattern, marker, linearGradient, radialGradient')) continue;
+    const add = (target: SVGGraphicsElement, src: Element, named: boolean) => {
       let box: DOMRect;
       let m: DOMMatrix | null;
       try {
-        box = el.getBBox();
-        m = el.getScreenCTM();
+        box = target.getBBox();
+        m = target.getScreenCTM();
       } catch {
-        continue;
+        return;
       }
-      if (!m || box.width <= 0 || box.height <= 0) continue;
+      if (!m || box.width <= 0 || box.height <= 0) return;
       const corners = [
         new DOMPoint(box.x, box.y),
         new DOMPoint(box.x + box.width, box.y),
@@ -215,14 +222,55 @@ export function parseSvgTemplate(text: string): ParsedSvg {
         w: r2((Math.max(...xs) - Math.min(...xs)) * k),
         h: r2((Math.max(...ys) - Math.min(...ys)) * k),
       };
-      if (rect.w < MIN_SIDE_MM || rect.h < MIN_SIDE_MM) continue;
-      if (rect.w >= sheet.w * 0.97 && rect.h >= sheet.h * 0.97) continue; // page background
-      if (rect.x < -TOL || rect.y < -TOL || rect.x + rect.w > sheet.w + TOL || rect.y + rect.h > sheet.h + TOL) continue;
-      if (shapes.some((s) => Math.abs(s.rect.x - rect.x) < TOL && Math.abs(s.rect.y - rect.y) < TOL && sameSize(s.rect, rect))) continue;
-      const name = el.getAttribute('data-name') || el.id || '';
-      const group = el.parentElement?.closest('g[data-name], g[id]');
+      if (rect.w < MIN_SIDE_MM || rect.h < MIN_SIDE_MM) return;
+      if (rect.w >= sheet.w * 0.97 && rect.h >= sheet.h * 0.97) return; // page background
+      if (rect.x < -TOL || rect.y < -TOL || rect.x + rect.w > sheet.w + TOL || rect.y + rect.h > sheet.h + TOL) return;
+      if (shapes.some((s) => Math.abs(s.rect.x - rect.x) < TOL && Math.abs(s.rect.y - rect.y) < TOL && sameSize(s.rect, rect))) return;
+      const name = named ? src.getAttribute('data-name') || src.id || '' : '';
+      const group = src.parentElement?.closest('g[data-name], g[id]');
       const groupName = group?.getAttribute('data-name') || group?.id || '';
-      shapes.push({ id: shapes.length, rect, tag: el.tagName.toLowerCase(), name, groupName, role: 'ignore' });
+      shapes.push({ id: shapes.length, rect, tag: src.tagName.toLowerCase(), name, groupName, role: 'ignore' });
+    };
+
+    for (const el of els) {
+      if (el.closest('defs, clipPath, mask, symbol, pattern, marker, linearGradient, radialGradient')) continue;
+      add(el, el, true);
+      // Illustrator draws a card with photo windows as ONE compound path (outline + a hole per
+      // window), so each subpath is measured too — the holes are the photo frames
+      if (el.tagName.toLowerCase() !== 'path') continue;
+      const subs = splitSubpaths(el.getAttribute('d') ?? '');
+      if (subs.length < 2) continue;
+      const tmp = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const tf = el.getAttribute('transform');
+      if (tf) tmp.setAttribute('transform', tf);
+      el.after(tmp);
+      try {
+        let prevEnd = { x: 0, y: 0 };
+        for (const sub of subs) {
+          const nums = sub.rest.match(NUM_RE);
+          if (!nums || nums.length < 2) break;
+          const base = sub.relative ? prevEnd : { x: 0, y: 0 };
+          const start = { x: base.x + Number(nums[0]), y: base.y + Number(nums[1]) };
+          // drop the two start coordinates; what follows a moveto is an implicit lineto
+          let tail = sub.rest;
+          for (let i = 0; i < 2; i++) tail = tail.replace(NUM_RE_ONCE, '');
+          const implicit = /^[\s,]*[-+.\d]/.test(tail) ? (sub.relative ? 'l' : 'L') : '';
+          tmp.setAttribute('d', `M${start.x},${start.y}${implicit}${tail}`);
+          add(tmp, el, false);
+          // a closed subpath leaves the pen at its start; an open one at its last point
+          if (/[zZ]\s*$/.test(tail)) prevEnd = start;
+          else {
+            try {
+              const end = tmp.getPointAtLength(tmp.getTotalLength());
+              prevEnd = { x: end.x, y: end.y };
+            } catch {
+              prevEnd = start;
+            }
+          }
+        }
+      } finally {
+        tmp.remove();
+      }
     }
   } finally {
     host.remove();
