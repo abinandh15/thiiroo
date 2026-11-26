@@ -7,9 +7,9 @@ export function StatusPill({ status, extra }: { status: OrderStatus; extra?: str
     importing: { cls: 'accent', label: 'Importing' },
     needs_review: { cls: 'attention', label: 'Needs review' },
     ready: { cls: 'ready', label: 'Ready' },
-    printed: { cls: 'neutral', label: 'Printed' },
+    printed: { cls: 'accent', label: 'Printed' },
     done: { cls: 'neutral', label: 'Done' },
-    held: { cls: 'attention', label: 'Held' },
+    held: { cls: 'held', label: 'On hold' },
     error: { cls: 'error', label: 'Error' },
   };
   const m = map[status];

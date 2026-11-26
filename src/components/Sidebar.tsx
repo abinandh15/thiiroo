@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
 import { listProducts, resolveProduct } from '../products';
+import { LayoutSwitch } from './LayoutSwitch';
+import { ThemeToggle } from './common';
 
 type AmazonStatus =
   | { state: 'offline' } // backend not running — manual import only
@@ -128,7 +130,12 @@ export function Sidebar() {
       <div className="side-label">Tools</div>
       {link('/crop-export', 'Crop export')}
 
-      <AmazonCard />
+      <div className="side-foot">
+        <div className="side-label">Layout</div>
+        <LayoutSwitch />
+        <ThemeToggle />
+        <AmazonCard />
+      </div>
     </nav>
   );
 }

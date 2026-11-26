@@ -1,0 +1,124 @@
+/* Visual refresh shared by all three layouts: bold status colours, tight corners, larger type.
+   Colour overrides are scoped to the light theme; the dark "darkroom" theme keeps its palette.
+   Nothing here touches .sheet or @media print. */
+
+:root:not([data-theme='dark']) {
+  --bg-app: #f3f3f6;
+  --bg-panel: #ffffff;
+  --bg-subtle: #f8f8fa;
+  --bg-canvas: #e4e4ea;
+  --bg-stage: #e9e9ee;
+  --ink: #1b1c1f;
+  --ink-muted: #6c7078;
+  --ink-faint: #8f939b;
+  --border: #ebebef;
+  --border-strong: #dcdce3;
+  --accent: #3a6df0;
+  --accent-tint: #eaf0ff;
+  --ready: #2fae4e;
+  --ready-text: #1d6b2c;
+  --ready-tint: #e3f7e6;
+  --attention: #ff8f4f;
+  --attention-text: #a8480a;
+  --attention-tint: #fff0e6;
+  --error: #c7361f;
+  --error-tint: #ffe9e4;
+  --neutral-text: #565a62;
+  --neutral-tint: #eeeef2;
+  --sidebar-bg: #ffffff;
+  --sidebar-ink: #1b1c1f;
+  --row-sep: #f0f0f3;
+  --radius-card: 10px;
+  --radius-btn: 7px;
+  --shadow-card: 0 0 0 1px rgba(20, 20, 40, 0.04), 0 4px 14px rgba(20, 20, 40, 0.05);
+  --font-ui: Inter, 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ---- type scale (both themes) ---- */
+body { font-size: 13.5px; }
+.header { height: 56px; }
+.header .title { font-size: 16px; }
+.header .crumb, .header .stamp { font-size: 13px; }
+.header .kbd-legend { font-size: 11.5px; }
+.btn { font-size: 13px; padding: 8px 14px; }
+.btn.sm { font-size: 12.5px; padding: 5px 11px; }
+.side-row { font-size: 13.5px; padding: 8px 10px; }
+.side-sub .side-row { font-size: 13px; }
+.side-label, .section-label, .table-head, .qhead { font-size: 10.5px; }
+.side-row .count { font-size: 11.5px; }
+.card-title { font-size: 14px; }
+.seg button { font-size: 12.5px; padding: 5px 12px; }
+.search input { font-size: 13px; }
+.oid { font-size: 12.5px; }
+.table-row { font-size: 13px; }
+.qrow .warnline, .qcard .warnline, .warn-card, .kv, .stat .s, .rail-note, .crop-hint,
+.import-item, .sheet-readout, .check-row, .notice-row, .radio-card .s, .dropzone .s { font-size: 12px; }
+.radio-card .t, .toggle-row, .dropzone .t { font-size: 13.5px; }
+.state-card .h { font-size: 16px; }
+.state-card .b { font-size: 13px; }
+.stat .v { font-size: 26px; }
+
+/* ---- status tags: solid colour, squared ---- */
+.pill { border-radius: 5px; padding: 3px 9px; font-size: 12px; font-weight: 600; }
+.pill .dot { display: none; }
+.pill.held { background: var(--attention-tint); color: var(--attention-text); }
+:root:not([data-theme='dark']) .pill.ready { background: #b9f0bf; color: #1d6b2c; }
+:root:not([data-theme='dark']) .pill.attention { background: #ff8f4f; color: #3d1600; }
+:root:not([data-theme='dark']) .pill.held { background: #efb4f1; color: #74267a; }
+:root:not([data-theme='dark']) .pill.warn { background: #ffe45c; color: #5c4a00; }
+:root:not([data-theme='dark']) .pill.neutral { background: #eeeef2; color: #565a62; }
+:root:not([data-theme='dark']) .pill.accent { background: #dfe8ff; color: #2a50bd; }
+:root:not([data-theme='dark']) .pill.error { background: #ffd0c7; color: #8a1c0b; }
+.pill.warn { background: var(--attention-tint); color: var(--attention-text); }
+a.pill { text-decoration: none; }
+
+/* ---- light sidebar ---- */
+:root:not([data-theme='dark']) .sidebar { border-right: 1px solid var(--border); }
+:root:not([data-theme='dark']) .sidebar .logo-mark { background: var(--ink); color: #fff; }
+:root:not([data-theme='dark']) .side-row:hover { background: var(--bg-app); }
+:root:not([data-theme='dark']) .side-row.active { background: var(--bg-app); font-weight: 600; }
+:root:not([data-theme='dark']) .side-sub { border-left-color: var(--border-strong); }
+:root:not([data-theme='dark']) .side-ghost { border-color: var(--border-strong); }
+:root:not([data-theme='dark']) .side-amazon { background: var(--bg-app); }
+:root:not([data-theme='dark']) .side-amazon .dot { background: var(--ink-faint); }
+:root:not([data-theme='dark']) .side-label { opacity: 1; color: var(--ink-faint); }
+/* the dark action bars used --sidebar-bg; keep them dark now that the sidebar is light */
+:root:not([data-theme='dark']) .selbar,
+:root:not([data-theme='dark']) .confirm-bar { background: #1b1c1f; }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.side-foot .side-label { padding: 8px 2px 0; }
+.side-foot .side-amazon { margin-top: 0; }
+.layout-switch { align-self: flex-start; }
+.side-foot .layout-switch { align-self: stretch; }
+.side-foot .layout-switch button { flex: 1; padding: 5px 4px; }
+
+/* ---- top bar shell (Board and Focus layouts) ---- */
+.app.stacked { flex-direction: column; }
+.app.stacked > .main { min-height: 0; }
+.topbar {
+  height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 20px;
+  background: var(--bg-panel); border-bottom: 1px solid var(--border);
+}
+.topbar-logo { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; color: var(--ink); }
+.topbar-logo .logo-mark {
+  width: 26px; height: 26px; border-radius: 7px; background: var(--ink); color: var(--bg-panel);
+  display: grid; place-items: center; font-size: 13px; font-weight: 700;
+}
+.topbar-menu { position: relative; }
+.topbar-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 230px; padding: 10px;
+  display: flex; flex-direction: column; gap: 2px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.16);
+}
+.topbar-pop a { color: var(--ink); padding: 6px 8px; border-radius: var(--radius-btn); font-size: 13px; }
+.topbar-pop a:hover { background: var(--bg-app); }
+.topbar-pop .section-label { padding: 8px 8px 3px; }
+.topbar-pop .theme-toggle { align-self: flex-start; margin: 2px 8px 4px; }
+
+/* ---- shared import drop ---- */
+.import-drop { display: flex; flex-direction: column; gap: 12px; }
+.import-drop.compact .dropzone { padding: 16px 12px; }
+.import-drop.compact .dropzone .icon { width: 26px; height: 26px; font-size: 13px; margin-bottom: 6px; }
+.dropzone .icon { border-radius: 7px; }
+.thumb { border-radius: 2px; }
+
+.side-foot .theme-toggle { align-self: flex-start; }

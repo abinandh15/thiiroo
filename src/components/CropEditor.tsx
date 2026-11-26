@@ -14,7 +14,9 @@ export function useReframe(
   photo: Photo | undefined,
   onCommit: (photo: Photo, placement: Placement | undefined) => void,
   /** printed photo frame in mm the DPI is judged against; default = Instant Photo Prints */
-  frame?: { w: number; h: number }
+  frame?: { w: number; h: number },
+  /** on-screen width of the crop frame in px (height keeps the 279:331 preview ratio) */
+  frameW: number = FRAME_W
 ) {
   // pending (uncommitted) placement while dragging/zooming
   const [pend, setPend] = useState<Placement | null>(null);
@@ -132,7 +134,7 @@ export function useReframe(
   };
   const onPointerMove = (e: React.PointerEvent) => {
     if (!dragRef.current || !photo) return;
-    const unitsPerPx = photo.crop.w / FRAME_W;
+    const unitsPerPx = photo.crop.w / frameW;
     const start = dragRef.current;
     setPend({
       ...start.p,
@@ -150,7 +152,7 @@ export function useReframe(
   const dpi = photo && eff ? printDpi(photo.crop, eff.scale, frame) : 0;
 
   return {
-    eff, dpi, zoomTo, nudge, rotate90, rotateBy, resetFraming,
+    frameW, eff, dpi, zoomTo, nudge, rotate90, rotateBy, resetFraming,
     frameRef, onPointerDown, onPointerMove, onPointerUp, onRotDown, onRotMove, onRotUp,
     zoomDraft, setZoomDraft, zoomCancel,
   };
@@ -187,12 +189,12 @@ export function reframeKey(e: KeyboardEvent, r: Reframe): boolean {
 export function CropFrame({ photo, r }: { photo: Photo; r: Reframe }) {
   const eff = r.eff;
   if (!eff) return null;
-  const kUnits = FRAME_W / (photo.crop.w || 219); // px per design unit in the crop frame
+  const kUnits = r.frameW / (photo.crop.w || 219); // px per design unit in the crop frame
   return (
     <div
       ref={r.frameRef}
       className="crop-frame"
-      style={{ width: FRAME_W, height: FRAME_H }}
+      style={{ width: r.frameW, height: Math.round((r.frameW * FRAME_H) / FRAME_W) }}
       onPointerDown={r.onPointerDown}
       onPointerMove={r.onPointerMove}
       onPointerUp={r.onPointerUp}

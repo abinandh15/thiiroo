@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useHome } from '../lib/useHome';
 import { orderKey, useStore } from '../store';
 import { productPath, resolveProduct } from '../products';
 import { useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
@@ -14,6 +15,7 @@ export function PrintLayout() {
   const { key: rawKey } = useParams();
   const navigate = useNavigate();
   const product = useRouteProduct();
+  const homeNav = useHome(product.id);
   const allOrders = useStore((s) => s.orders);
   const orders = useProductOrders(product);
   const guides = useStore((s) => s.guides);
@@ -46,7 +48,7 @@ export function PrintLayout() {
     return (
       <div className="main">
         <header className="header">
-          <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer' }}>← Queue</a>
+          <a onClick={() => navigate(homeNav.path)} style={{ cursor: 'pointer' }}>← {homeNav.label}</a>
           <span className="title">Print layout</span>
           <span className="spacer" />
           <ThemeToggle />
@@ -76,7 +78,7 @@ export function PrintLayout() {
   return (
     <div className="main">
       <header className="header">
-        <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
+        <a onClick={() => navigate(homeNav.path)} style={{ cursor: 'pointer', fontSize: 12 }}>← {homeNav.label}</a>
         <span className="title">Print layout</span>
         <span className="crumb mono">
           {order.id} · sheet {Math.min(cur, sheets.length - 1) + 1} of {sheets.length}

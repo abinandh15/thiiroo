@@ -1,0 +1,66 @@
+/* Review screen: crop in the centre, buyer preview as a small reference, checks instead of raw
+   metadata, one primary action under the photo. */
+
+.rv .header a { font-size: 13px; white-space: nowrap; }
+.rv .header .btn { white-space: nowrap; }
+.rv kbd, .btn kbd {
+  font: 500 11px var(--font-ui); border: 1px solid currentColor; border-radius: 4px; padding: 0 5px;
+  margin-left: 6px; opacity: 0.65;
+}
+
+/* shortcuts: one hover/focus popover instead of a legend that overflows the header */
+.rv-keys { position: relative; font-size: 12.5px; color: var(--ink-muted); cursor: default; padding: 6px 4px; outline: none; }
+.rv-keys:hover, .rv-keys:focus { color: var(--ink); }
+.rv-keys-pop {
+  display: none; position: absolute; right: 0; top: 100%; z-index: 40; width: 250px; padding: 10px 12px;
+  flex-direction: column; gap: 6px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.16); color: var(--ink);
+}
+.rv-keys:hover .rv-keys-pop, .rv-keys:focus .rv-keys-pop { display: flex; }
+.rv-key-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.rv-key-row kbd { margin: 0; min-width: 62px; text-align: center; opacity: 0.8; }
+
+/* order rail */
+.rv-rail { width: 196px; }
+.rv-rail .item { display: flex; gap: 10px; align-items: center; }
+.rv-rail .item .thumb { width: 30px; height: 36px; flex: none; }
+.rv-rail .item .id { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-rail .item .why { font-size: 11.5px; }
+.rv-rail .item.active { box-shadow: inset 3px 0 0 var(--ink); }
+
+/* stage */
+.rv-stage { flex-direction: column; gap: 16px; justify-content: safe center; }
+.rv-work { display: flex; align-items: flex-start; gap: 22px; }
+.rv-buyer { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex: none; }
+.rv-buyer .buyer-canvas { box-shadow: 0 0 0 1px var(--border); }
+.rv-buyer-note { font-size: 11.5px; line-height: 1.4; max-width: 190px; }
+.rv-nosnap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.rv-crop { display: flex; flex-direction: column; align-items: center; }
+.rv-crop .crop-frame { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15), 0 10px 30px rgba(0, 0, 0, 0.16); }
+.rv-crop .crop-controls { flex-wrap: wrap; }
+.rv-missing {
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; cursor: default;
+  border: 1.5px dashed var(--attention); background: var(--attention-tint); font-size: 12.5px;
+}
+.rv-actions { display: flex; gap: 10px; align-items: center; }
+.rv-approve { padding: 11px 22px; font-size: 14px; }
+.rv .filmstrip { padding: 10px 22px; font-size: 12px; }
+
+/* checks panel */
+.rv-panel { width: 272px; gap: 10px; }
+.rv-check { display: flex; gap: 10px; align-items: flex-start; }
+.rv-check > i {
+  width: 18px; height: 18px; border-radius: 4px; flex: none; margin-top: 1px; display: grid; place-items: center;
+  font-style: normal; font-size: 11px; font-weight: 700; background: var(--ready-tint); color: var(--ready-text);
+}
+.rv-check.warn > i { background: var(--attention); color: #3d1600; }
+.rv-check .t { font-size: 13px; font-weight: 500; }
+.rv-check .s { font-size: 12px; color: var(--ink-muted); line-height: 1.45; margin-top: 1px; }
+.rv-check-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.rv-details { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px; }
+.rv-details summary { cursor: pointer; font-size: 12.5px; color: var(--ink-muted); margin-bottom: 6px; }
+.rv-progress-head { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink); }
+
+@media (max-width: 1320px) {
+  .rv-buyer-note { display: none; }
+}
+.rv-crop .crop-controls { white-space: nowrap; max-width: 470px; }

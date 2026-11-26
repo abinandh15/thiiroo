@@ -2,6 +2,9 @@ import { useEffect } from 'react';
 import { HashRouter, Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
 import { effectiveTemplate, useStore } from './store';
 import { Sidebar } from './components/Sidebar';
+import { TopBar } from './components/TopBar';
+import { Board } from './screens/Board';
+import { Focus } from './screens/Focus';
 import { PrintRoot } from './components/PrintRoot';
 import { Overview } from './screens/Overview';
 import { Queue } from './screens/Queue';
@@ -73,6 +76,7 @@ export default function App() {
   const theme = useStore((s) => s.theme);
   const toggleTheme = useStore((s) => s.toggleTheme);
   const init = useStore((s) => s.init);
+  const layout = useStore((s) => s.layout);
 
   useEffect(() => {
     void init();
@@ -81,6 +85,10 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.layout = layout;
+  }, [layout]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -96,10 +104,10 @@ export default function App() {
   return (
     <HashRouter>
       <DevHooks />
-      <div className="app">
-        <Sidebar />
+      <div className={`app${layout === 'pipeline' ? '' : ' stacked'}`}>
+        {layout === 'pipeline' ? <Sidebar /> : <TopBar />}
         <Routes>
-          <Route path="/" element={<Overview />} />
+          <Route path="/" element={layout === 'board' ? <Board /> : layout === 'focus' ? <Focus /> : <Overview />} />
           <Route path="/p/:productId" element={<ProductGate />}>
             <Route path="queue" element={<Queue />} />
             <Route path="review" element={<Review />} />

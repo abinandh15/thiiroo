@@ -1,0 +1,37 @@
+.bd-board { display: flex; flex-direction: column; min-height: 0; }
+
+.bd-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 22px 0; }
+.bd-chip {
+  padding: 6px 14px; border-radius: 999px; font: inherit; font-weight: 600; font-size: 13px;
+  color: var(--ink-muted); background: var(--bg-subtle);
+  border: 1px solid var(--border); cursor: pointer;
+}
+.bd-chip.on { background: var(--ink); color: var(--bg-panel); border-color: var(--ink); }
+
+.bd-cols {
+  flex: 1; min-height: 0; display: flex; gap: 14px; padding: 16px 22px;
+  overflow-x: auto; overflow-y: hidden;
+}
+.bd-col { flex: 1 0 220px; min-width: 220px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.bd-col.bd-inbox { flex: 0 0 230px; width: 230px; }
+.bd-ch {
+  min-height: 32px; display: flex; align-items: center; gap: 8px; flex: none;
+  font-weight: 700; font-size: 15px; padding: 2px 4px;
+}
+.bd-n { background: var(--bg-panel); border-radius: 999px; padding: 0 9px; font-size: 12.5px; color: var(--ink-muted); font-weight: 600; }
+.bd-sp { flex: 1; }
+.bd-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 2px 2px 12px; }
+.bd-printgroups { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+
+.bd-oc { padding: 13px 14px; display: flex; flex-direction: column; gap: 9px; border-radius: 10px; cursor: pointer; flex: none; }
+.bd-oc .bd-r { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bd-oc.sel { box-shadow: 0 0 0 2px var(--accent); }
+.bd-thumbs { display: flex; flex-wrap: wrap; gap: 4px; }
+.bd-warnline { font-size: 12px; color: var(--attention-text); }
+.bd-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--ink-muted); }
+
+.bd-note { margin: 0; }
+.bd-note .row { word-break: break-all; }
+.bd-hint { padding: 16px 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--ink-muted); font-size: 13px; line-height: 1.5; }
+.bd-more { background: none; border: 0; font: inherit; color: var(--ink-muted); padding: 4px; text-align: left; cursor: pointer; }
+.bd-more:hover { text-decoration: underline; }
