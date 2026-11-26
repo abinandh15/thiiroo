@@ -111,6 +111,11 @@ export function Sidebar() {
                   {[p.asin, p.sizeLabel].filter(Boolean).join(' · ')}
                 </span>
               </span>
+              {c.open > 0 && (
+                <span className={`count${c.review ? ' warn' : ''}`} title={`${c.open} open · ${c.review} to review`}>
+                  {c.open}
+                </span>
+              )}
             </NavLink>
             {inProduct && (
               <div className="side-sub">

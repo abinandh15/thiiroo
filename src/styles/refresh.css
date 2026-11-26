@@ -122,3 +122,8 @@ a.pill { text-decoration: none; }
 .thumb { border-radius: 2px; }
 
 .side-foot .theme-toggle { align-self: flex-start; }
+
+/* overview activity: rows open their order */
+.table-row.clickable { cursor: pointer; }
+.table-row.clickable:hover { background: var(--bg-subtle); }
+.table-row .ev-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px; }

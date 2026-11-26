@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useHome } from '../lib/useHome';
 import { allApproved, orderKey, sheetsPerCopy, useStore } from '../store';
-import { packSizeOf, packWarning, productPath, resolveProduct } from '../products';
+import { listProducts, packSizeOf, packWarning, productPath, resolveProduct } from '../products';
 import type { Product } from '../products';
 import type { TemplateDescriptor } from '../lib/geometry';
 import { aspectWarning, useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
@@ -12,6 +12,7 @@ import { blobUrl, truncateMiddle } from '../lib/format';
 import { DPI_FLOOR, photoFrame, slotsPerSheet } from '../lib/geometry';
 import { StatusPill, ThemeToggle } from '../components/common';
 import '../styles/review.css';
+import { downloadOrderCrops, downloadPhotoCrop } from '../lib/cropDownload';
 import { CropControls, CropFrame, FRAME_H, FRAME_W, reframeKey, useReframe } from '../components/CropEditor';
 
 const fmtMm = (v: number) => String(Math.round(v * 10) / 10);
@@ -97,6 +98,8 @@ function ReviewInner({
   const approveAll = useStore((s) => s.approveAll);
   const reframePhoto = useStore((s) => s.reframePhoto);
   const setStatus = useStore((s) => s.setStatus);
+  const assignProduct = useStore((s) => s.assignProduct);
+  const products = listProducts();
 
   const [idx, setIdx] = useState(0);
   const photo: Photo | undefined = order.photos[idx];
@@ -151,6 +154,25 @@ function ReviewInner({
         <StatusPill status={order.status} />
         <span className="crumb">Photo {idx + 1} of {order.photos.length}</span>
         <span className="spacer" />
+        {products.length > 1 && (
+          <label className="rv-template" title="Print this order with another product's template. Approvals are cleared and DPI is re-judged.">
+            Template
+            <select
+              value={product.id}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id === product.id) return;
+                const cleared = order.photos.some((p) => p.approved);
+                if (cleared && !window.confirm("Switching the template clears this order's photo approvals. Continue?")) return;
+                assignProduct([k], id, false);
+              }}
+            >
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <span className="rv-keys" tabIndex={0}>
           Shortcuts
           <span className="rv-keys-pop card">
@@ -159,6 +181,13 @@ function ReviewInner({
             ))}
           </span>
         </span>
+        <button
+          className="btn"
+          title="Save every photo of this order as a JPEG, cropped as positioned and trimmed to this template's frame (.zip)"
+          onClick={() => void downloadOrderCrops([order], template)}
+        >
+          Download crops
+        </button>
         <button className="btn" onClick={() => setStatus(k, order.status === 'held' ? 'needs_review' : 'held')}>
           {order.status === 'held' ? 'Release hold' : 'Hold order'}
         </button>
@@ -239,6 +268,9 @@ function ReviewInner({
 
             {photo && !photo.missing && (
               <div className="rv-actions">
+                <button className="btn" title="Save this photo as a JPEG, cropped as positioned and trimmed to this template's frame" onClick={() => void downloadPhotoCrop(photo, idx, template)}>
+                  Download
+                </button>
                 <button className="btn" onClick={() => updatePhoto(k, photo.id, { flagged: !photo.flagged, approved: false })}>
                   {photo.flagged ? 'Unflag photo' : 'Flag photo'}
                 </button>

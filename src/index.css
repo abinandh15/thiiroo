@@ -528,11 +528,19 @@ a { color: var(--accent); text-decoration: none; }
 .sheet .pcard.swappable:active { cursor: grabbing; }
 .sheet .pcard.dragging { opacity: 0.45; }
 .sheet .pcard.dropover { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 2; }
+.sheet .cphoto.swappable { cursor: grab; }
+.sheet .cphoto.swappable:active { cursor: grabbing; }
+.sheet .cphoto.dragging { opacity: 0.45; }
+.sheet .cphoto.dropover { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 2; }
+.sheet .cphoto .slotnum {
+  position: absolute; left: 4px; top: 4px; background: rgba(23, 24, 26, 0.75); color: #fff;
+  font-family: var(--font-mono); font-size: 9px; padding: 0 5px; border-radius: 2px;
+}
 
 /* numbered slot chips in the options panel (30×40, spec §4 Slots) */
-.slot-chips { display: flex; gap: 6px; }
+.slot-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .slot-chip {
-  position: relative; width: 30px; height: 40px; border-radius: 3px; overflow: hidden;
+  position: relative; width: 30px; height: 40px; flex: none; border-radius: 3px; overflow: hidden;
   background: var(--bg-subtle); border: 1px solid var(--border-strong);
   display: flex; align-items: center; justify-content: center;
 }

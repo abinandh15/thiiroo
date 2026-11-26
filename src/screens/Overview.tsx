@@ -1,9 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { sheetCount, useStore } from '../store';
+import { orderKey, sheetCount, useStore } from '../store';
 import { listProducts, productPath, resolveProduct } from '../products';
 import { headerStamp, timeHM } from '../lib/format';
 import { ImportButton, StatusPill, ThemeToggle } from '../components/common';
 import { blobUrl } from '../lib/format';
+
+const ACTIVITY_COLS = '160px 170px minmax(0, 1fr) 60px 130px 60px';
 
 export function Overview() {
   const orders = useStore((s) => s.orders);
@@ -14,6 +16,17 @@ export function Overview() {
   void customProducts;
   const unassigned = orders.filter((o) => !resolveProduct(o)).length;
   const firstQueue = productPath(products[0].id, 'queue');
+
+  // activity rows only carry the order ID: look the order up to name its product and open it
+  const orderOf = (orderId: string) => orders.find((o) => o.id === orderId);
+  const openOrder = (orderId: string) => {
+    const o = orderOf(orderId);
+    if (!o) return;
+    const p = resolveProduct(o);
+    if (!p) return navigate('/unassigned');
+    const step = o.status === 'needs_review' || o.status === 'held' ? 'review' : 'print';
+    navigate(productPath(p.id, `${step}/${encodeURIComponent(orderKey(o))}`));
+  };
 
   const inQueue = orders.filter((o) => o.status !== 'printed' && o.status !== 'done');
   const needsReview = orders.filter((o) => o.status === 'needs_review');
@@ -104,18 +117,33 @@ export function Overview() {
               </div>
             ) : (
               <>
-                <div className="table-head" style={{ gridTemplateColumns: '150px 1fr 60px 120px 60px' }}>
-                  <span>Order</span><span>Event</span><span>Photos</span><span>Status</span><span>Time</span>
+                <div className="table-head" style={{ gridTemplateColumns: ACTIVITY_COLS }}>
+                  <span>Order</span><span>Product</span><span>Event</span><span>Photos</span><span>Status</span><span>Time</span>
                 </div>
-                {activity.slice(0, 12).map((ev, i) => (
-                  <div key={i} className="table-row" style={{ gridTemplateColumns: '150px 1fr 60px 120px 60px' }}>
+                {activity.slice(0, 12).map((ev, i) => {
+                  const o = orderOf(ev.orderId);
+                  const p = o ? resolveProduct(o) : undefined;
+                  return (
+                  <div
+                    key={i}
+                    className={`table-row${o ? ' clickable' : ''}`}
+                    style={{ gridTemplateColumns: ACTIVITY_COLS }}
+                    title={o ? (p ? `Open this order in ${p.name}` : 'Choose a product for this order') : 'This order was removed'}
+                    onClick={() => openOrder(ev.orderId)}
+                  >
                     <span className="oid">{ev.orderId}</span>
-                    <span>{ev.event}</span>
+                    <span>
+                      {!o ? <span className="faint">removed</span>
+                        : p ? <span className="pill neutral">{p.name}</span>
+                        : <span className="pill warn">Unassigned</span>}
+                    </span>
+                    <span className="ev-text" title={ev.event}>{ev.event}</span>
                     <span className="mono">{ev.photos}</span>
                     <span><StatusPill status={ev.status} /></span>
                     <span className="mono faint">{timeHM(ev.at)}</span>
                   </div>
-                ))}
+                  );
+                })}
               </>
             )}
           </div>

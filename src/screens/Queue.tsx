@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { downloadOrderCrops } from '../lib/cropDownload';
 import { orderKey, sheetCount, useStore } from '../store';
 import type { Order } from '../lib/types';
 import { blobUrl, timeHM } from '../lib/format';
@@ -475,6 +476,13 @@ export function Queue() {
                   Reopen review
                 </button>
               )}
+              <button
+                className="btn sm"
+                title="Save the selected orders' photos as JPEGs, cropped as positioned and trimmed to this template's frame (.zip)"
+                onClick={() => void downloadOrderCrops(selectedOrders, template)}
+              >
+                Download crops
+              </button>
               <button
                 className="btn sm"
                 onClick={() => markPrinted(selectedOrders.map(orderKey), false)}

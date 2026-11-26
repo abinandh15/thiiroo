@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { downloadOrderCrops } from '../lib/cropDownload';
 import { useHome } from '../lib/useHome';
 import { orderKey, useStore } from '../store';
 import { productPath, resolveProduct } from '../products';
@@ -94,6 +95,13 @@ export function PrintLayout() {
           }}
         >
           Reopen review
+        </button>
+        <button
+          className="btn"
+          title="Save this order's photos as JPEGs, cropped as positioned and trimmed to this template's frame (.zip)"
+          onClick={() => void downloadOrderCrops([order], template)}
+        >
+          Download crops
         </button>
         <button className="btn" onClick={() => printSheets(sheets, [k], template)} title="Use the dialog's 'Save as PDF' destination">
           Export PDF
