@@ -35,6 +35,27 @@ export interface TemplateDescriptor {
   vBars: { x: number; w: number }[];
   hStrips: { x: number; w: number; y: number; h: number }[];
   idZone: { x: number; y: number; w: number; h: number };
+  /** Free-form layout built from an imported SVG (Add product). When present it replaces
+   *  the card grid: the grid fields above are kept only as informational defaults. */
+  custom?: CustomLayout;
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface CustomLayout {
+  /** photo frames in fill order, sheet coordinates in mm */
+  photos: Rect[];
+  /** cut outlines (cards, strips) in mm — drive the outline and crop marks */
+  cuts: Rect[];
+  /** the source SVG as a data URL, drawn full-sheet underneath the photos */
+  artwork?: string;
+  /** whether the artwork is printed, or only the photos */
+  printArtwork: boolean;
 }
 
 /** Recompute the grey cut-waste bars from card geometry. The constants reproduce
@@ -78,7 +99,7 @@ export const DEFAULT_TEMPLATE: TemplateDescriptor = {
 };
 
 export function slotsPerSheet(t: TemplateDescriptor): number {
-  return t.colX.length * t.rowTop.length;
+  return t.custom ? t.custom.photos.length : t.colX.length * t.rowTop.length;
 }
 
 /** slot order: top row L->R then bottom row L->R */
@@ -91,9 +112,35 @@ export function slotRect(slot: number, t: TemplateDescriptor = DEFAULT_TEMPLATE)
 /** DPI floor used for warnings */
 export const DPI_FLOOR = 150;
 
-/** effective print DPI for a crop that spans `cropUnits` design units mapped from source pixels at `scale` */
-export function printDpi(cropWidthUnits: number, scale: number): number {
-  const sourcePx = cropWidthUnits / scale;
-  const inches = PHOTO.w / 25.4;
-  return Math.round(sourcePx / inches);
+/** The printed photo frame DPI is judged against. A custom layout can mix frame sizes, so the
+ *  worst case is returned: with `crop`, the frame that stretches that crop the most when it
+ *  fills the frame; without it, the largest frame by area (good enough for display). */
+export function photoFrame(t: TemplateDescriptor, crop?: { w: number; h: number }): { w: number; h: number } {
+  if (!t.custom) return t.photo;
+  const stretch = (r: { w: number; h: number }) =>
+    crop && crop.w > 0 && crop.h > 0 ? Math.max(r.w / crop.w, r.h / crop.h) : r.w * r.h;
+  return t.custom.photos.reduce((a, r) => (stretch(r) > stretch(a) ? r : a), { w: 0, h: 0 });
+}
+
+/** Effective print DPI of a crop window (design units, mapped from source pixels at `scale`)
+ *  printed into `frame` (mm). The sheet fills the frame with the crop (object-fit: cover), so
+ *  the mm-per-unit is set by whichever side has to stretch further. For the 219×260 crop on the
+ *  69.8×82.5 photo area that is the width, which reproduces the original width-only formula. */
+export function printDpi(
+  crop: { w: number; h: number },
+  scale: number,
+  frame: { w: number; h: number } = PHOTO
+): number {
+  const mmPerUnit = Math.max(frame.w / crop.w, frame.h / crop.h);
+  if (!(mmPerUnit > 0) || !(scale > 0)) return 0;
+  return Math.round(25.4 / (scale * mmPerUnit));
+}
+
+/** True when the crop's shape differs from the frame's by more than 2%, so filling the frame
+ *  trims visibly more than the buyer framed. (The built-in template is 0.5% off, by design.) */
+export function aspectMismatch(crop: { w: number; h: number }, frame: { w: number; h: number }): boolean {
+  if (!(crop.w > 0 && crop.h > 0 && frame.w > 0 && frame.h > 0)) return false;
+  const a = crop.w / crop.h;
+  const b = frame.w / frame.h;
+  return Math.abs(a - b) / b > 0.02;
 }

@@ -1,18 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { allApproved, effectivePlacement, orderKey, sheetsPerCopy, useStore } from '../store';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { allApproved, orderKey, sheetsPerCopy, useStore } from '../store';
+import { packSizeOf, packWarning, productPath, resolveProduct } from '../products';
+import type { Product } from '../products';
+import type { TemplateDescriptor } from '../lib/geometry';
+import { aspectWarning, useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
 import type { Order, Photo, Placement } from '../lib/types';
 import { blobUrl, truncateMiddle } from '../lib/format';
-import { DPI_FLOOR, PHOTO, printDpi, SLOTS_PER_SHEET } from '../lib/geometry';
+import { DPI_FLOOR, photoFrame, slotsPerSheet } from '../lib/geometry';
 import { StatusPill, ThemeToggle } from '../components/common';
+import { CropControls, CropFrame, FRAME_H, FRAME_W, reframeKey, useReframe } from '../components/CropEditor';
 
-const FRAME_W = 279; // px preview of the 219-unit crop window
-const FRAME_H = 331;
+const fmtMm = (v: number) => String(Math.round(v * 10) / 10);
 const CANVAS_PX = 330; // buyer 400x400 canvas preview size
 
 export function Review() {
   const { key: rawKey } = useParams();
-  const orders = useStore((s) => s.orders);
+  const product = useRouteProduct();
+  const allOrders = useStore((s) => s.orders);
+  const orders = useProductOrders(product);
+  const template = useProductTemplate(product);
   const navigate = useNavigate();
 
   const reviewables = useMemo(
@@ -22,11 +29,22 @@ export function Review() {
   const key = rawKey ? decodeURIComponent(rawKey) : reviewables[0] ? orderKey(reviewables[0]) : undefined;
   const order = orders.find((o) => orderKey(o) === key);
 
+  // the URL names an order that belongs to another template (or to none): follow it there
+  const elsewhere = rawKey ? allOrders.find((o) => orderKey(o) === key) : undefined;
+  if (!order && elsewhere) {
+    const home = resolveProduct(elsewhere);
+    return home ? (
+      <Navigate replace to={productPath(home.id, `review/${encodeURIComponent(orderKey(elsewhere))}`)} />
+    ) : (
+      <Navigate replace to="/unassigned" />
+    );
+  }
+
   if (!order) {
     return (
       <div className="main">
         <header className="header">
-          <a onClick={() => navigate('/p/instant-photo-prints/queue')} style={{ cursor: 'pointer' }}>← Queue</a>
+          <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer' }}>← Queue</a>
           <span className="title">Review</span>
           <span className="spacer" />
           <ThemeToggle />
@@ -40,7 +58,9 @@ export function Review() {
       </div>
     );
   }
-  return <ReviewInner key={orderKey(order)} order={order} reviewables={reviewables} />;
+  return (
+    <ReviewInner key={orderKey(order)} order={order} reviewables={reviewables} product={product} template={template} />
+  );
 }
 
 function reviewReason(o: Order): { text: string; ok: boolean } {
@@ -51,8 +71,21 @@ function reviewReason(o: Order): { text: string; ok: boolean } {
   return { text: `Not yet reviewed · ${o.photos.length} photos`, ok: true };
 }
 
-function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[] }) {
+function ReviewInner({
+  order,
+  reviewables,
+  product,
+  template,
+}: {
+  order: Order;
+  reviewables: Order[];
+  product: Product;
+  template: TemplateDescriptor;
+}) {
   const k = orderKey(order);
+  const frame = useMemo(() => photoFrame(template), [template]);
+  const slots = slotsPerSheet(template);
+  const aspectWarn = aspectWarning(order, template);
   const navigate = useNavigate();
   const updatePhoto = useStore((s) => s.updatePhoto);
   const approveAll = useStore((s) => s.approveAll);
@@ -62,132 +95,12 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
   const [idx, setIdx] = useState(0);
   const photo: Photo | undefined = order.photos[idx];
 
-  // pending (uncommitted) placement while dragging/zooming
-  const [pend, setPend] = useState<Placement | null>(null);
-  const commitTimer = useRef<number | null>(null);
-  const eff = photo ? (pend ?? effectivePlacement(photo)) : null;
-
-  // while focused, the zoom input holds a draft string; null = mirror the live value
-  const [zoomDraft, setZoomDraft] = useState<string | null>(null);
-  // escape blurs synchronously, before the setZoomDraft(null) state update lands — flag the cancel
-  const zoomCancel = useRef(false);
-
-  useEffect(() => { setPend(null); setZoomDraft(null); }, [idx, order.id]);
-
-  const commit = useCallback(
-    (p: Placement) => {
-      if (!photo) return;
-      const same =
-        p.scale === photo.buyerPlacement.scale &&
-        p.angle === photo.buyerPlacement.angle &&
-        p.position.x === photo.buyerPlacement.position.x &&
-        p.position.y === photo.buyerPlacement.position.y;
-      void reframePhoto(k, photo.id, same ? undefined : p);
-    },
-    [photo, k, reframePhoto]
+  const onReframe = useCallback(
+    (p: Photo, placement: Placement | undefined) => void reframePhoto(k, p.id, placement),
+    [k, reframePhoto]
   );
-
-  const scheduleCommit = useCallback(
-    (p: Placement) => {
-      if (commitTimer.current) window.clearTimeout(commitTimer.current);
-      commitTimer.current = window.setTimeout(() => commit(p), 350);
-    },
-    [commit]
-  );
-
-  function zoomTo(newScale: number) {
-    if (!photo || !eff || photo.missing) return;
-    const s = Math.max(0.01, Math.min(newScale, 5));
-    // keep the crop-window centre fixed
-    const cx = photo.crop.x + photo.crop.w / 2;
-    const cy = photo.crop.y + photo.crop.h / 2;
-    const ix = (cx - eff.position.x) / eff.scale;
-    const iy = (cy - eff.position.y) / eff.scale;
-    const p: Placement = { ...eff, scale: s, position: { x: cx - ix * s, y: cy - iy * s } };
-    setPend(p);
-    scheduleCommit(p);
-  }
-
-  /** move the image by design-canvas units; 1 unit ≈ 0.32 mm on paper */
-  function nudge(dx: number, dy: number) {
-    if (!photo || !eff || photo.missing) return;
-    const p: Placement = { ...eff, position: { x: eff.position.x + dx, y: eff.position.y + dy } };
-    setPend(p);
-    scheduleCommit(p);
-  }
-
-  function rotate90() {
-    if (!photo || !eff || photo.missing) return;
-    const p: Placement = { ...eff, angle: (eff.angle + 90) % 360 };
-    setPend(p);
-    commit(p);
-  }
-
-  /** fine rotation about the image centre — the crop pipeline takes any angle */
-  function rotateBy(delta: number) {
-    if (!photo || !eff || photo.missing) return;
-    const p: Placement = { ...eff, angle: (((eff.angle + delta) % 360) + 360) % 360 };
-    setPend(p);
-    scheduleCommit(p);
-  }
-
-  function resetFraming() {
-    if (!photo) return;
-    setPend(null);
-    void reframePhoto(k, photo.id, undefined);
-  }
-
-  // rotate handle: drag swings the image about its centre; snaps to right angles unless shift is held
-  const frameRef = useRef<HTMLDivElement>(null);
-  const rotRef = useRef<{ startAngle: number; startPointer: number } | null>(null);
-  const pointerAngle = (e: React.PointerEvent) => {
-    const r = frameRef.current!.getBoundingClientRect();
-    return (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI;
-  };
-  const onRotDown = (e: React.PointerEvent) => {
-    if (!eff || !photo || photo.missing) return;
-    e.stopPropagation();
-    (e.target as Element).setPointerCapture(e.pointerId);
-    rotRef.current = { startAngle: eff.angle, startPointer: pointerAngle(e) };
-  };
-  const onRotMove = (e: React.PointerEvent) => {
-    if (!rotRef.current || !eff) return;
-    let a = rotRef.current.startAngle + pointerAngle(e) - rotRef.current.startPointer;
-    a = ((a % 360) + 360) % 360;
-    const near = (Math.round(a / 90) * 90) % 360;
-    const off = ((a - near + 540) % 360) - 180;
-    if (!e.shiftKey && Math.abs(off) < 2.5) a = near; // settle onto 0/90/180/270
-    else a = Math.round(a * 2) / 2; // otherwise 0.5° steps
-    setPend({ ...eff, angle: a });
-  };
-  const onRotUp = () => {
-    if (rotRef.current && pend) commit(pend);
-    rotRef.current = null;
-  };
-
-  // drag to pan
-  const dragRef = useRef<{ x: number; y: number; p: Placement } | null>(null);
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (!eff || !photo || photo.missing) return;
-    (e.target as Element).setPointerCapture(e.pointerId);
-    dragRef.current = { x: e.clientX, y: e.clientY, p: eff };
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current || !photo) return;
-    const unitsPerPx = photo.crop.w / FRAME_W;
-    const start = dragRef.current;
-    setPend({
-      ...start.p,
-      position: {
-        x: start.p.position.x + (e.clientX - start.x) * unitsPerPx,
-        y: start.p.position.y + (e.clientY - start.y) * unitsPerPx,
-      },
-    });
-  };
-  const onPointerUp = () => {
-    if (dragRef.current && pend) commit(pend);
-    dragRef.current = null;
-  };
+  const rf = useReframe(photo, onReframe, frame);
+  const { eff, dpi } = rf;
 
   const nextReviewable = reviewables.find((o) => orderKey(o) !== k);
 
@@ -195,42 +108,25 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
-      if (e.shiftKey && e.key.startsWith('Arrow')) {
-        // fine adjustment: shift+arrows nudge the image 1 unit (~0.32 mm printed)
-        e.preventDefault();
-        if (e.key === 'ArrowRight') nudge(1, 0);
-        else if (e.key === 'ArrowLeft') nudge(-1, 0);
-        else if (e.key === 'ArrowUp') nudge(0, -1);
-        else if (e.key === 'ArrowDown') nudge(0, 1);
-        return;
-      }
-      if (e.code === 'BracketLeft' || e.code === 'BracketRight') {
-        // fine rotation: [ ] = 1°, with shift = 5°
-        e.preventDefault();
-        rotateBy((e.code === 'BracketLeft' ? -1 : 1) * (e.shiftKey ? 5 : 1));
-        return;
-      }
+      if (reframeKey(e, rf)) return;
       if (e.key === 'ArrowRight') setIdx((i) => Math.min(i + 1, order.photos.length - 1));
       else if (e.key === 'ArrowLeft') setIdx((i) => Math.max(i - 1, 0));
       else if (e.key === 'a' || e.key === 'A') {
         if (e.shiftKey) approveAll(k);
         else if (photo && !photo.missing) updatePhoto(k, photo.id, { approved: true, flagged: false });
-      } else if (e.key === 'r' || e.key === 'R') rotate90();
-      else if (e.key === 'Escape') navigate('/p/instant-photo-prints/queue');
+      } else if (e.key === 'Escape') navigate(productPath(product.id, 'queue'));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 
   const approvedCount = order.photos.filter((p) => p.approved || p.missing).length;
-  const dpi = eff ? printDpi(photo!.crop.w, eff.scale) : 0;
-  const kUnits = FRAME_W / (photo?.crop.w || 219); // px per design unit in the crop frame
   const kCanvas = CANVAS_PX / 400;
 
   return (
     <div className="main">
       <header className="header">
-        <a onClick={() => navigate('/p/instant-photo-prints/queue')} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
+        <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
         <span className="title mono">{order.id}</span>
         <StatusPill status={order.status} />
         <span className="crumb">Photo {idx + 1} of {order.photos.length}</span>
@@ -247,8 +143,8 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
           className="btn primary"
           onClick={() => {
             approveAll(k);
-            if (nextReviewable) navigate(`/p/instant-photo-prints/review/${encodeURIComponent(orderKey(nextReviewable))}`);
-            else navigate('/p/instant-photo-prints/queue');
+            if (nextReviewable) navigate(productPath(product.id, `review/${encodeURIComponent(orderKey(nextReviewable))}`));
+            else navigate(productPath(product.id, 'queue'));
           }}
         >
           Approve all &amp; continue →
@@ -264,7 +160,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
               <div
                 key={orderKey(o)}
                 className={`item${orderKey(o) === k ? ' active' : ''}`}
-                onClick={() => navigate(`/p/instant-photo-prints/review/${encodeURIComponent(orderKey(o))}`)}
+                onClick={() => navigate(productPath(product.id, `review/${encodeURIComponent(orderKey(o))}`))}
               >
                 <div className="id">{o.id}</div>
                 <div className={`why${reason.ok ? ' ok' : ''}`}>{reason.text}</div>
@@ -317,7 +213,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
 
             {/* our crop */}
             <div>
-              <div className="stage-caption top accent">Our crop · 1095×1300 px · JPEG q0.95</div>
+              <div className="stage-caption top accent">Our crop · {photo ? `${photo.cropW}×${photo.cropH}` : '—'} px · JPEG q0.95</div>
               {photo?.missing ? (
                 <div
                   className="crop-frame"
@@ -332,97 +228,9 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
                   </div>
                 </div>
               ) : (
-                photo && eff && (
-                  <div
-                    ref={frameRef}
-                    className="crop-frame"
-                    style={{ width: FRAME_W, height: FRAME_H }}
-                    onPointerDown={onPointerDown}
-                    onPointerMove={onPointerMove}
-                    onPointerUp={onPointerUp}
-                    onWheel={(e) => {
-                      zoomTo(eff.scale * (e.deltaY < 0 ? 1.06 : 1 / 1.06));
-                    }}
-                  >
-                    {dpi < DPI_FLOOR && <div className="dpi-chip">{dpi} DPI</div>}
-                    <img
-                      src={blobUrl(photo.sourceBlob)}
-                      alt=""
-                      style={{
-                        left: (eff.position.x - photo.crop.x) * kUnits,
-                        top: (eff.position.y - photo.crop.y) * kUnits,
-                        width: eff.dimension.width * eff.scale * kUnits,
-                        height: eff.dimension.height * eff.scale * kUnits,
-                        transform: eff.angle ? `rotate(${eff.angle}deg)` : undefined,
-                      }}
-                    />
-                    <div className="thirds" />
-                    <div className="safe" />
-                    <div
-                      className="rot-handle"
-                      title="Drag to rotate · snaps to 90s, hold shift for free rotation"
-                      onPointerDown={onRotDown}
-                      onPointerMove={onRotMove}
-                      onPointerUp={onRotUp}
-                    >
-                      ⟳
-                    </div>
-                  </div>
-                )
+                photo && eff && <CropFrame photo={photo} r={rf} />
               )}
-              {photo && !photo.missing && eff && (
-                <>
-                  <div className="crop-controls">
-                    <div className="stepper" title="Zoom relative to the buyer's framing — type an exact value, e.g. 1.37">
-                      <button onClick={() => zoomTo(eff.scale / 1.1)}>−</button>
-                      <input
-                        className="val"
-                        value={zoomDraft ?? `${(eff.scale / photo.buyerPlacement.scale).toFixed(2)}×`}
-                        onFocus={(e) => {
-                          setZoomDraft((eff.scale / photo.buyerPlacement.scale).toFixed(2));
-                          e.target.select();
-                        }}
-                        onChange={(e) => setZoomDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                          else if (e.key === 'Escape') { zoomCancel.current = true; (e.target as HTMLInputElement).blur(); }
-                        }}
-                        onBlur={() => {
-                          if (!zoomCancel.current && zoomDraft !== null) {
-                            const v = parseFloat(zoomDraft.replace(',', '.'));
-                            if (Number.isFinite(v) && v > 0) zoomTo(v * photo.buyerPlacement.scale);
-                          }
-                          zoomCancel.current = false;
-                          setZoomDraft(null);
-                        }}
-                      />
-                      <button onClick={() => zoomTo(eff.scale * 1.1)}>+</button>
-                    </div>
-                    <div className="stepper nudge" title="Nudge the image · click = 0.3 mm · shift+click = 1.6 mm">
-                      {(
-                        [
-                          ['◀', -1, 0],
-                          ['▲', 0, -1],
-                          ['▼', 0, 1],
-                          ['▶', 1, 0],
-                        ] as const
-                      ).map(([sym, dx, dy]) => (
-                        <button key={sym} onClick={(e) => nudge(dx * (e.shiftKey ? 5 : 1), dy * (e.shiftKey ? 5 : 1))}>
-                          {sym}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="stepper nudge" title="Fine rotation · click = 1° · shift+click = 5°">
-                      <button onClick={(e) => rotateBy(e.shiftKey ? -5 : -1)}>⟲</button>
-                      <span className="val">{(eff.angle > 180 ? eff.angle - 360 : eff.angle).toFixed(0)}°</span>
-                      <button onClick={(e) => rotateBy(e.shiftKey ? 5 : 1)}>⟳</button>
-                    </div>
-                    <button className="btn sm" onClick={rotate90}>Rotate 90° <span className="faint mono">R</span></button>
-                    <button className="btn sm" onClick={resetFraming}>Reset to buyer framing</button>
-                  </div>
-                  <div className="crop-hint">Drag to re-frame · scroll to zoom · ⇧arrows / pad to nudge · [ ] to rotate fine</div>
-                </>
-              )}
+              {photo && <CropControls photo={photo} r={rf} />}
             </div>
           </div>
 
@@ -440,7 +248,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
                 )}
               </div>
             ))}
-            {Array.from({ length: Math.max(0, SLOTS_PER_SHEET - order.photos.length) }, (_, i) => (
+            {Array.from({ length: Math.max(0, slots - order.photos.length) }, (_, i) => (
               <div key={`e${i}`} className="fthumb empty">empty<br />slot</div>
             ))}
             <span className="spacer" />
@@ -485,7 +293,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
           {photo && !photo.missing && dpi < DPI_FLOOR && (
             <div className="warn-card">
               <div className="t">! Low resolution</div>
-              {dpi} DPI at {PHOTO.w} × {PHOTO.h} mm — under the {DPI_FLOOR} DPI floor. Prints usable but soft.
+              {dpi} DPI at {fmtMm(frame.w)} × {fmtMm(frame.h)} mm — under the {DPI_FLOOR} DPI floor. Prints usable but soft.
               Zooming out increases DPI.
               <div className="actions">
                 <button className="btn sm" onClick={() => updatePhoto(k, photo.id, { approved: true, flagged: false })}>
@@ -495,13 +303,20 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
                   className="btn sm"
                   onClick={() => {
                     void navigator.clipboard.writeText(
-                      `Hi! Thanks for your order ${order.id}. The photo "${photo.buyerFilename}" is lower resolution than ideal for a sharp ${'3×4'}-inch print (${dpi} DPI). It will still print, but may look slightly soft. If you have a larger original, reply with it within 24h and we'll use that instead.`
+                      `Hi! Thanks for your order ${order.id}. The photo "${photo.buyerFilename}" is lower resolution than ideal for a sharp ${product.sizeLabel ? product.sizeLabel + ' ' : ''}print (${dpi} DPI). It will still print, but may look slightly soft. If you have a larger original, reply with it within 24h and we'll use that instead.`
                     );
                   }}
                 >
                   Copy buyer message
                 </button>
               </div>
+            </div>
+          )}
+
+          {photo && !photo.missing && aspectWarn && (
+            <div className="warn-card">
+              <div className="t">! Crop shape</div>
+              {aspectWarn}
             </div>
           )}
 
@@ -519,12 +334,14 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
             <div className="card-title" style={{ marginBottom: 8 }}>Order</div>
             <div className="kv"><span className="k">item</span><span className="v">{order.itemId}</span></div>
             <div className="kv"><span className="k">qty</span><span className="v">{order.qty}</span></div>
-            <div className="kv"><span className="k">photos</span><span className="v">{order.photos.length} of {SLOTS_PER_SHEET} slots</span></div>
+            <div className="kv"><span className="k">pack</span><span className="v">{packSizeOf(order) ?? (order.productId ? 'picked by hand' : 'unknown ASIN')}</span></div>
+            <div className="kv"><span className="k">photos</span><span className="v">{order.photos.length} of {packSizeOf(order) ?? slots}</span></div>
+            {packWarning(order) && <div className="warnline">{packWarning(order)}</div>}
             <div className="kv">
               <span className="k">sheets</span>
               <span className="v">
                 {sheetsPerCopy(order)}
-                {order.photos.length < SLOTS_PER_SHEET ? ` (${SLOTS_PER_SHEET - order.photos.length} blanks)` : ''}
+                {order.photos.length < slots ? ` (${slots - order.photos.length} blanks)` : ''}
               </span>
             </div>
             <div className="kv"><span className="k">zip</span><span className="v">{truncateMiddle(order.zipName, 24)}</span></div>

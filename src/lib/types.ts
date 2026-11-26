@@ -44,6 +44,8 @@ export interface Order {
   id: string; // orderId
   itemId: string;
   asin: string;
+  /** template chosen by hand; wins over the ASIN lookup. Absent = follow the ASIN. */
+  productId?: string;
   title: string;
   qty: number;
   zipName: string;

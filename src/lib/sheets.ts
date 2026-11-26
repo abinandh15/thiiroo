@@ -1,5 +1,4 @@
 import type { Order, Photo } from './types';
-import { SLOTS_PER_SHEET } from './geometry';
 
 export interface SlotFill {
   photo: Photo;
@@ -18,16 +17,23 @@ function printablePhotos(o: Order): Photo[] {
   return o.photos.filter((p) => !p.missing);
 }
 
-/** strict: one order per sheet-set; combine: pack part sheets across orders */
-export function buildSheets(orders: Order[], mode: 'strict' | 'combine'): SheetModel[] {
+/** strict: one order per sheet-set; combine: pack part sheets across orders.
+ *  `slotsPerSheet` comes from the product's template (`slotsPerSheet(t)`); every order passed
+ *  in must belong to that one product. */
+export function buildSheets(
+  orders: Order[],
+  mode: 'strict' | 'combine',
+  slotsPerSheet: number
+): SheetModel[] {
+  const n = Math.max(1, Math.floor(slotsPerSheet));
   const sheets: SheetModel[] = [];
   if (mode === 'strict') {
     for (const o of orders) {
       const photos = printablePhotos(o);
       const perCopy: SheetModel[] = [];
-      for (let i = 0; i < photos.length; i += SLOTS_PER_SHEET) {
-        const chunk = photos.slice(i, i + SLOTS_PER_SHEET);
-        const slots: (SlotFill | null)[] = Array.from({ length: SLOTS_PER_SHEET }, (_, j) =>
+      for (let i = 0; i < photos.length; i += n) {
+        const chunk = photos.slice(i, i + n);
+        const slots: (SlotFill | null)[] = Array.from({ length: n }, (_, j) =>
           chunk[j] ? { photo: chunk[j], orderId: o.id } : null
         );
         perCopy.push({ orderIds: [o.id], slots });
@@ -49,9 +55,9 @@ export function buildSheets(orders: Order[], mode: 'strict' | 'combine'): SheetM
       const photos = printablePhotos(o);
       for (let c = 0; c < o.qty; c++) for (const p of photos) fills.push({ photo: p, orderId: o.id });
     }
-    for (let i = 0; i < fills.length; i += SLOTS_PER_SHEET) {
-      const chunk = fills.slice(i, i + SLOTS_PER_SHEET);
-      const slots: (SlotFill | null)[] = Array.from({ length: SLOTS_PER_SHEET }, (_, j) => chunk[j] ?? null);
+    for (let i = 0; i < fills.length; i += n) {
+      const chunk = fills.slice(i, i + n);
+      const slots: (SlotFill | null)[] = Array.from({ length: n }, (_, j) => chunk[j] ?? null);
       const ids: string[] = [];
       for (const f of chunk) if (!ids.includes(f.orderId)) ids.push(f.orderId);
       sheets.push({ orderIds: ids, slots });

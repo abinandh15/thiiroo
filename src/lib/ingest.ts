@@ -1,6 +1,7 @@
 import { readZip } from './zip';
 import { printDpi } from './geometry';
 import type { Order, Photo, Placement } from './types';
+import { packWarning } from '../products';
 
 export const CROP_OUT_W = 1095;
 export const CROP_OUT_H = 1300;
@@ -82,10 +83,14 @@ export async function cropPhoto(
   return { blob, w: outW, h: outH };
 }
 
-/** Parse an Amazon customization zip into a fully cropped Order. */
+/** Parse an Amazon customization zip into a fully cropped Order.
+ *  `frameOf` gives the printed photo frame (mm) of the product an ASIN routes to, so DPI is
+ *  judged against the right template; without it (or for an unknown ASIN) the Instant Photo
+ *  Prints photo area is assumed, and the DPI is recomputed when a template is assigned. */
 export async function parseOrderZip(
   file: File,
-  onPhotoDone: (done: number, total: number) => void
+  onPhotoDone: (done: number, total: number) => void,
+  frameOf?: (asin: string, crop: { w: number; h: number }) => { w: number; h: number } | undefined
 ): Promise<Order> {
   const zip = await readZip(await file.arrayBuffer());
   const jsonName = zip.names.find((n) => n.toLowerCase().endsWith('.json'));
@@ -101,6 +106,7 @@ export async function parseOrderZip(
 
   const orderId = (meta.orderId as string) || file.name.replace(/\.zip$/i, '');
   const itemId = (meta.orderItemId as string) || '';
+  const asin = (meta.asin as string) || '';
 
   let snapshotBlob: Blob | undefined;
   const custData = meta.customizationData as { children?: { snapshot?: { imageName?: string } }[] } | undefined;
@@ -118,7 +124,7 @@ export async function parseOrderZip(
   for (let i = 0; i < slots.length; i++) {
     const s = slots[i];
     const inZip = zip.names.includes(s.imageName);
-    const dpi = printDpi(s.crop.w, s.placement.scale);
+    const dpi = printDpi(s.crop, s.placement.scale, frameOf?.(asin, s.crop));
     let sourceBlob = new Blob([]);
     let cropBlob = new Blob([]);
     let cropW = CROP_OUT_W;
@@ -160,10 +166,13 @@ export async function parseOrderZip(
   if (missingCount)
     warnings.push(`${missingCount} image${missingCount > 1 ? 's' : ''} referenced but missing from zip`);
 
+  const packWarn = packWarning({ asin, photos });
+  if (packWarn) warnings.push(packWarn);
+
   return {
     id: orderId,
     itemId,
-    asin: (meta.asin as string) || '',
+    asin,
     title: (meta.title as string) || '',
     qty: (meta.quantity as number) ?? 1,
     zipName: file.name,

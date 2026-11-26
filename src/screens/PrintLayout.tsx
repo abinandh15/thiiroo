@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { effectiveTemplate, orderKey, useStore } from '../store';
-import { instantPhotoPrints } from '../products';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { orderKey, useStore } from '../store';
+import { productPath, resolveProduct } from '../products';
+import { useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
+import { photoFrame, slotsPerSheet } from '../lib/geometry';
 import { buildSheets } from '../lib/sheets';
 import { Sheet } from '../components/Sheet';
 import { ThemeToggle } from '../components/common';
@@ -11,26 +13,40 @@ import { blobUrl } from '../lib/format';
 export function PrintLayout() {
   const { key: rawKey } = useParams();
   const navigate = useNavigate();
-  const orders = useStore((s) => s.orders);
+  const product = useRouteProduct();
+  const allOrders = useStore((s) => s.orders);
+  const orders = useProductOrders(product);
   const guides = useStore((s) => s.guides);
   const setGuide = useStore((s) => s.setGuide);
   const combineMode = useStore((s) => s.combineMode);
   const setCombineMode = useStore((s) => s.setCombineMode);
   const swapPhotos = useStore((s) => s.swapPhotos);
   const reopenReview = useStore((s) => s.reopenReview);
-  const template = useStore((s) => effectiveTemplate(s, instantPhotoPrints.id));
+  const template = useProductTemplate(product);
+  const slots = slotsPerSheet(template);
 
   const key = rawKey ? decodeURIComponent(rawKey) : undefined;
   const order = orders.find((o) => orderKey(o) === key) ?? orders.find((o) => o.status === 'ready');
-  const sheets = useMemo(() => (order ? buildSheets([order], 'strict') : []), [order]);
+  const sheets = useMemo(() => (order ? buildSheets([order], 'strict', slots) : []), [order, slots]);
   const [cur, setCur] = useState(0);
   const sheet = sheets[Math.min(cur, sheets.length - 1)];
+
+  // the URL names an order that belongs to another template (or to none): follow it there
+  const elsewhere = key && !orders.some((o) => orderKey(o) === key) ? allOrders.find((o) => orderKey(o) === key) : undefined;
+  if (elsewhere) {
+    const home = resolveProduct(elsewhere);
+    return home ? (
+      <Navigate replace to={productPath(home.id, `print/${encodeURIComponent(orderKey(elsewhere))}`)} />
+    ) : (
+      <Navigate replace to="/unassigned" />
+    );
+  }
 
   if (!order) {
     return (
       <div className="main">
         <header className="header">
-          <a onClick={() => navigate('/p/instant-photo-prints/queue')} style={{ cursor: 'pointer' }}>← Queue</a>
+          <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer' }}>← Queue</a>
           <span className="title">Print layout</span>
           <span className="spacer" />
           <ThemeToggle />
@@ -47,6 +63,10 @@ export function PrintLayout() {
 
   const k = orderKey(order);
 
+  const frame = photoFrame(template);
+  const sheetSize = `${template.sheet.w}mm ${template.sheet.h}mm`;
+  const isA4Landscape = template.sheet.w === 297 && template.sheet.h === 210;
+
   const swapSlots = (a: number, b: number) => {
     const fa = sheet?.slots[a];
     const fb = sheet?.slots[b];
@@ -56,7 +76,7 @@ export function PrintLayout() {
   return (
     <div className="main">
       <header className="header">
-        <a onClick={() => navigate('/p/instant-photo-prints/queue')} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
+        <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
         <span className="title">Print layout</span>
         <span className="crumb mono">
           {order.id} · sheet {Math.min(cur, sheets.length - 1) + 1} of {sheets.length}
@@ -68,15 +88,15 @@ export function PrintLayout() {
           title="Send back through the review gate (approvals are kept)"
           onClick={() => {
             reopenReview(k);
-            navigate(`/p/instant-photo-prints/review/${encodeURIComponent(k)}`);
+            navigate(productPath(product.id, `review/${encodeURIComponent(k)}`));
           }}
         >
           Reopen review
         </button>
-        <button className="btn" onClick={() => printSheets(sheets, [k])} title="Use the dialog's 'Save as PDF' destination">
+        <button className="btn" onClick={() => printSheets(sheets, [k], template)} title="Use the dialog's 'Save as PDF' destination">
           Export PDF
         </button>
-        <button className="btn primary" onClick={() => printSheets(sheets, [k])}>
+        <button className="btn primary" onClick={() => printSheets(sheets, [k], template)}>
           Print {sheets.length > 1 ? `${sheets.length} sheets` : 'sheet'} ⌘P
         </button>
       </header>
@@ -100,10 +120,19 @@ export function PrintLayout() {
         <div className="sheet-canvas">
           {sheet && <Sheet model={sheet} unit={2} guides={guides} shadow onSwapSlots={swapSlots} template={template} />}
           <div className="sheet-readout">
-            <span>{template.sheet.w} × {template.sheet.h} mm · A4 landscape</span>
-            <span>card {template.card.w} × {template.card.h} mm</span>
-            <span>photo {template.photo.w} × {template.photo.h} mm</span>
-            <span>chin {template.chin} mm</span>
+            <span>{template.sheet.w} × {template.sheet.h} mm{isA4Landscape ? ' · A4 landscape' : ''}</span>
+            {template.custom ? (
+              <>
+                <span>{slots} frame{slots === 1 ? '' : 's'} per sheet</span>
+                <span>frame {Math.round(frame.w * 10) / 10} × {Math.round(frame.h * 10) / 10} mm</span>
+              </>
+            ) : (
+              <>
+                <span>card {template.card.w} × {template.card.h} mm</span>
+                <span>photo {template.photo.w} × {template.photo.h} mm</span>
+                <span>chin {template.chin} mm</span>
+              </>
+            )}
             <span className="zoom-chip">zoom 2 px/mm</span>
           </div>
         </div>
@@ -164,7 +193,7 @@ export function PrintLayout() {
 
           <div className="css-card">
             <strong style={{ color: 'var(--ink)' }}>Print stylesheet</strong>
-            <br />@page {'{'} size: 297mm 210mm; margin: 0 {'}'}
+            <br />@page {'{'} size: {sheetSize}; margin: 0 {'}'}
             <br />prints: .sheet only
             <br />hides: chrome, panels, screen-only guides
             <br />Chrome dialog: scale 100%, background graphics ON
