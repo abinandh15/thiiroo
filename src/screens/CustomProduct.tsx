@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ThemeToggle } from '../components/common';
 import { Sheet } from '../components/Sheet';
 import { slotsPerSheet } from '../lib/geometry';
-import { productAsins } from '../products';
+import { findByAsin, productAsins } from '../products';
+import { parseVariants } from './AddProduct';
 import { printSheets } from '../lib/printJob';
 import type { SheetModel } from '../lib/sheets';
 import { useStore } from '../store';
@@ -24,7 +25,47 @@ export function CustomProduct({ productId }: { productId: string }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // edit form: null = not editing
+  const [edit, setEdit] = useState<{ name: string; asins: string; sizeLabel: string } | null>(null);
+  const [saveError, setSaveError] = useState('');
   if (!product) return null;
+
+  const parsedEdit = edit ? parseVariants(edit.asins) : null;
+  const takenBy = parsedEdit?.variants
+    .map((v) => ({ v, hit: findByAsin(v.asin) }))
+    .find((x) => x.hit && x.hit.product.id !== product.id);
+  const dupAsin = parsedEdit?.variants.find((v, i, all) => all.findIndex((x) => x.asin === v.asin) !== i);
+  const editProblem = !edit || !parsedEdit
+    ? ''
+    : !edit.name.trim()
+      ? 'Give the product a name.'
+      : parsedEdit.bad.length
+        ? `Not an ASIN: ${parsedEdit.bad[0]}`
+        : dupAsin
+          ? `${dupAsin.asin} is listed twice.`
+          : takenBy
+            ? `${takenBy.v.asin} already belongs to ${takenBy.hit!.product.name}.`
+            : '';
+  const startEdit = () => {
+    setSaveError('');
+    setEdit({
+      name: product.name,
+      asins: product.variants.map((v) => `${v.asin} ${v.packSize}`).join('\n'),
+      sizeLabel: product.sizeLabel,
+    });
+  };
+  const saveEdit = () => {
+    if (!edit || !parsedEdit || editProblem) return;
+    const err = saveProduct({
+      ...product,
+      name: edit.name.trim(),
+      asin: parsedEdit.variants[0]?.asin ?? '',
+      variants: parsedEdit.variants,
+      sizeLabel: edit.sizeLabel.trim(),
+    });
+    if (err) setSaveError(err);
+    else setEdit(null);
+  };
 
   const asins = productAsins(product);
   const t = product.template;
@@ -67,7 +108,41 @@ export function CustomProduct({ productId }: { productId: string }) {
         </div>
 
         <div className="card card-pad" style={{ width: 300, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div className="card-title" style={{ marginBottom: 4 }}>Product</div>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+            <span className="card-title" style={{ flex: 1 }}>Product</span>
+            {!edit && <button className="btn sm" onClick={startEdit}>Edit details</button>}
+          </div>
+          {edit && (
+            <div className="addp-form" style={{ width: 'auto', marginBottom: 10 }}>
+              <label className="f">
+                <span>name</span>
+                <input type="text" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} autoFocus />
+              </label>
+              <label className="f">
+                <span>ASINs — one per line, pack size after it</span>
+                <textarea
+                  value={edit.asins}
+                  onChange={(e) => setEdit({ ...edit, asins: e.target.value })}
+                  placeholder={'B0XXXXXXXX 4\nB0YYYYYYYY 8'}
+                  spellCheck={false}
+                  rows={Math.max(3, edit.asins.split('\n').length + 1)}
+                />
+              </label>
+              <label className="f">
+                <span>size label (sidebar)</span>
+                <input type="text" value={edit.sizeLabel} onChange={(e) => setEdit({ ...edit, sizeLabel: e.target.value })} />
+              </label>
+              {(editProblem || saveError) && <div className="warnline" style={{ fontSize: 12, color: 'var(--attention-text)' }}>{editProblem || saveError}</div>}
+              <div className="muted" style={{ fontSize: 12, lineHeight: 1.45 }}>
+                Orders follow their ASIN: adding one routes matching orders here, removing one sends its
+                orders to Unassigned unless they were assigned by hand.
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button className="btn sm primary" disabled={!!editProblem} onClick={saveEdit}>Save</button>
+                <button className="btn sm" onClick={() => setEdit(null)}>Cancel</button>
+              </div>
+            </div>
+          )}
           <div className="kv"><span className="k">name</span><span className="v">{product.name}</span></div>
           <div className="kv"><span className="k">size label</span><span className="v">{product.sizeLabel || '—'}</span></div>
           <div className="kv"><span className="k">cut outlines</span><span className="v">{layout.cuts.length}</span></div>

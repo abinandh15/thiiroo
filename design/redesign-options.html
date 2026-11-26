@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thiiroo dashboard — redesign options</title>
+<style>
+:root{
+  --bg:#f3f3f6; --card:#fff; --ink:#1b1c1f; --mut:#6c7078; --faint:#9a9ea6; --line:#ebebef;
+  --orange:#ff8f4f; --orange-t:#fff0e6; --blue:#3a6df0; --blue-t:#eaf0ff;
+  --green:#b9f0bf; --green-x:#1d6b2c; --pink:#efb4f1; --pink-x:#74267a;
+  --yellow:#ffe45c; --yellow-x:#5c4a00; --grey:#eeeef2; --grey-x:#565a62;
+  --r:10px; --sh:0 0 0 1px rgba(20,20,40,.05),0 4px 14px rgba(20,20,40,.06);
+  --font:Inter,"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9e9ee;color:var(--ink);font:14px/1.45 var(--font);-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+.page{max-width:1360px;margin:0 auto;padding:28px 28px 80px}
+.page>h1{font-size:26px;letter-spacing:-.02em;margin:0 0 4px}
+.page>p.lede{color:var(--mut);margin:0 0 20px;max-width:820px}
+.tabs{display:flex;gap:6px;position:sticky;top:0;z-index:20;background:#e9e9ee;padding:10px 0 12px;flex-wrap:wrap}
+.tabs button{border:1px solid transparent;background:#fff;border-radius:8px;padding:10px 16px;font-weight:600;color:var(--mut);box-shadow:var(--sh)}
+.tabs button.on{background:var(--ink);color:#fff}
+.tabs button small{display:block;font-weight:500;opacity:.7;font-size:12px}
+.tab{display:none}.tab.on{display:block}
+.intro{background:#fff;border-radius:var(--r);padding:20px 24px;box-shadow:var(--sh);margin:6px 0 22px;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:26px}
+.intro h2{margin:0 0 6px;font-size:20px;letter-spacing:-.01em}
+.intro h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.intro ul{margin:0;padding-left:18px;color:var(--mut)}.intro li{margin:3px 0}
+.cap{display:flex;align-items:baseline;gap:12px;margin:26px 2px 10px}
+.cap b{font-size:16px}.cap span{color:var(--mut)}
+.fw{position:relative;overflow:hidden;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.08),0 20px 50px rgba(0,0,0,.12);background:var(--bg)}
+.frame{width:1280px;height:780px;transform-origin:0 0;background:var(--bg);position:relative;overflow:hidden;display:flex;font-size:14px}
+
+/* audit */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.find{background:#fff;border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh)}
+.find .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.find h3{margin:4px 0 6px;font-size:15px}
+.find p{margin:0;color:var(--mut)}.find p+p{margin-top:6px;color:var(--ink)}
+.find p b{color:var(--blue)}
+table.cmp{width:100%;border-collapse:collapse;background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-top:14px}
+.cmp th,.cmp td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+.cmp th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+.cmp tr:last-child td{border-bottom:0}.cmp td:first-child{font-weight:600;width:170px}
+h2.sec{font-size:18px;margin:30px 2px 4px}
+
+/* ===== shared mock components ===== */
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh)}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.pill.o{background:var(--orange);color:#3d1600}.pill.g{background:var(--green);color:var(--green-x)}
+.pill.p{background:var(--pink);color:var(--pink-x)}.pill.y{background:var(--yellow);color:var(--yellow-x)}
+.pill.n{background:var(--grey);color:var(--grey-x)}.pill.b{background:var(--blue-t);color:var(--blue)}
+.btn{border:1px solid #dcdce3;background:#fff;border-radius:8px;padding:9px 16px;font-weight:600;color:var(--ink);white-space:nowrap}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.lg{padding:13px 22px;font-size:15px;border-radius:8px}.btn.sm{padding:6px 12px;font-size:13px;border-radius:7px}
+kbd{font:600 11px var(--font);border:1px solid rgba(0,0,0,.18);border-bottom-width:2px;border-radius:6px;padding:1px 6px;background:rgba(255,255,255,.6);color:inherit;opacity:.8}
+.btn.pri kbd,.btn.dark kbd{border-color:rgba(255,255,255,.45);background:rgba(255,255,255,.15)}
+.ph{display:block;border-radius:6px;position:relative;overflow:hidden}
+.ph::before{content:"";position:absolute;left:50%;top:26%;width:30%;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.55);transform:translateX(-50%)}
+.ph::after{content:"";position:absolute;left:18%;right:18%;top:58%;bottom:-20%;border-radius:50% 50% 0 0;background:rgba(255,255,255,.45)}
+.ph.blank{background:none!important;border:1.5px dashed #d0d0d8}.ph.blank::before,.ph.blank::after{display:none}
+.thumbs{display:inline-flex;gap:4px}.thumbs .ph{width:30px;height:36px}
+.thumbs.lg .ph{width:40px;height:48px;border-radius:8px}
+.oid{font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.mut{color:var(--mut)}.faint{color:var(--faint)}.sp{flex:1}
+.search{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e2e8;border-radius:8px;padding:8px 12px;color:var(--faint);width:230px}
+.ic{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sheet{background:#fff;aspect-ratio:297/210;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr;gap:3.5% 5%;padding:2.5% 9%;box-shadow:0 2px 10px rgba(0,0,0,.12);border-radius:3px}
+.sheet .pol{background:#fff;box-shadow:0 0 0 1px #e3e3e8;padding:5% 5% 20%}.sheet .pol .ph{width:100%;height:100%;border-radius:1px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.logo i{width:30px;height:30px;border-radius:7px;background:var(--ink);color:#fff;display:grid;place-items:center;font-style:normal}
+
+/* sidebar shell (A) */
+.side{width:232px;background:#fff;border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:3px;flex:none}
+.side .lab{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:16px 10px 6px}
+.side a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;color:var(--mut);font-weight:500}
+.side a.on{background:var(--bg);color:var(--ink);font-weight:600}
+.side a .dot{width:9px;height:9px;border-radius:3px;flex:none}
+.side a .n{margin-left:auto;font-size:12px;font-weight:700;background:var(--grey);border-radius:999px;padding:0 8px}
+.side a .n.o{background:var(--orange);color:#3d1600}
+.side .foot{margin-top:auto;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--mut)}
+.side.mini{width:68px;align-items:center}.side.mini a{padding:10px}.side.mini .dot{width:12px;height:12px}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:12px;padding:18px 24px 12px}
+.top h1{font-size:21px;margin:0;letter-spacing:-.02em}.top .sub{color:var(--mut)}
+
+/* stage stepper */
+.stages{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 24px}
+.stage{padding:14px 16px;position:relative;border:2px solid transparent}
+.stage.on{border-color:var(--ink)}
+.stage .k{font-size:12px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;display:flex;gap:8px;align-items:center}
+.stage .k i{width:20px;height:20px;border-radius:50%;background:var(--grey);color:var(--grey-x);display:grid;place-items:center;font-style:normal;font-size:11px}
+.stage .v{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin-top:4px}
+.stage .s{color:var(--mut);font-size:13px}
+.stage .go{position:absolute;right:14px;top:12px}
+.stage.drop{border:2px dashed #c9d5fb;background:var(--blue-t);box-shadow:none}
+.stage.att .k i{background:var(--orange);color:#3d1600}.stage.rdy .k i{background:var(--green);color:var(--green-x)}
+
+.list{margin:14px 24px 20px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.lhead{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.lhead b{font-size:15px}
+.seg{display:flex;background:var(--bg);border-radius:7px;padding:3px}
+.seg span{padding:5px 12px;border-radius:8px;font-size:13px;color:var(--mut);font-weight:500}
+.seg span.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.row{display:grid;grid-template-columns:22px 220px 1fr auto 130px;gap:16px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+.row .cb{width:18px;height:18px;border:1.5px solid #cfcfd8;border-radius:6px}
+.row .act{justify-self:end}
+.bar{width:4px;align-self:stretch;border-radius:4px}
+
+/* review */
+.rv{flex:1;display:flex;min-height:0;gap:14px;padding:0 24px 20px}
+.rv .olist{width:214px;flex:none;padding:12px;display:flex;flex-direction:column;gap:8px}
+.oi{border-radius:8px;padding:10px 12px;display:flex;gap:10px}
+.oi.on{background:var(--orange-t);box-shadow:inset 0 0 0 1.5px var(--orange)}
+.stagebox{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;position:relative;background:#e9e9ee;border-radius:var(--r)}
+.crop{width:330px;aspect-ratio:219/260;position:relative;border-radius:4px;box-shadow:0 12px 40px rgba(0,0,0,.22)}
+.crop .ph{width:100%;height:100%;border-radius:4px}
+.crop .grid3{position:absolute;inset:0;background:linear-gradient(#fff8,#fff8) 33.3% 0/1px 100% no-repeat,linear-gradient(#fff8,#fff8) 66.6% 0/1px 100% no-repeat,linear-gradient(#fff8,#fff8) 0 33.3%/100% 1px no-repeat,linear-gradient(#fff8,#fff8) 0 66.6%/100% 1px no-repeat}
+.crop .chip{position:absolute;left:10px;top:10px}
+.buyer{position:absolute;left:16px;top:16px;padding:8px;width:108px}
+.buyer .h4{font-size:10px}
+.buyer .ph{width:100%;aspect-ratio:1;border-radius:8px}
+.tools{display:flex;gap:6px;align-items:center;background:#fff;border-radius:10px;padding:6px;box-shadow:var(--sh)}
+.tools span{padding:7px 12px;border-radius:7px;font-weight:600;color:var(--mut)}
+.tools span.v{background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums}
+.tools i{width:1px;height:22px;background:var(--line)}
+.film{display:flex;gap:10px;align-items:center}
+.ft{position:relative}.ft .ph{width:50px;height:60px;border-radius:8px}
+.ft.cur .ph{outline:3px solid var(--blue);outline-offset:2px}
+.ft b{position:absolute;right:-5px;bottom:-5px;width:18px;height:18px;border-radius:50%;background:#2fae4e;color:#fff;font-size:11px;display:grid;place-items:center;border:2px solid #fff}
+.checks{width:262px;flex:none;padding:16px;display:flex;flex-direction:column;gap:10px}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:13.5px}
+.chk i{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:700;background:var(--green);color:var(--green-x)}
+.chk.w i{background:var(--yellow);color:var(--yellow-x)}
+.chk small{display:block;color:var(--mut)}
+.prog{height:8px;border-radius:8px;background:var(--grey);overflow:hidden}.prog i{display:block;height:100%;background:#2fae4e;border-radius:8px}
+.h4{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0}
+
+/* print */
+.pr{flex:1;display:flex;min-height:0;gap:14px;padding:0 24px 20px}
+.sheets{flex:1;background:#e9e9ee;border-radius:var(--r);padding:20px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-content:start}
+.sheets figure{margin:0}.sheets figcaption{font-size:12.5px;color:var(--mut);margin-top:7px;display:flex;justify-content:space-between}
+.ppanel{width:300px;flex:none;padding:18px;display:flex;flex-direction:column;gap:12px}
+.rc{border:1.5px solid var(--line);border-radius:8px;padding:11px 13px}.rc.on{border-color:var(--blue);background:var(--blue-t)}
+.rc b{display:block}.rc small{color:var(--mut)}
+
+/* board (B) */
+.bar-top{display:flex;align-items:center;gap:14px;padding:14px 22px;background:#fff;border-bottom:1px solid var(--line)}
+.chips{display:flex;gap:6px}.chips span{padding:7px 14px;border-radius:999px;font-weight:600;color:var(--mut);background:var(--bg)}
+.chips span.on{background:var(--ink);color:#fff}
+.col-wrap{flex:1;display:grid;grid-template-columns:232px repeat(4,1fr);gap:14px;padding:16px 22px;min-height:0}
+.col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.col>.ch{min-height:32px;display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;padding:2px 4px}
+.col>.ch .n{background:#fff;border-radius:999px;padding:0 9px;font-size:12.5px;color:var(--mut)}
+.oc{padding:13px 14px;display:flex;flex-direction:column;gap:9px;border-radius:10px}
+.oc .r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.oc.sel{box-shadow:0 0 0 2px var(--blue),var(--sh)}
+.dropc{border:2px dashed #c9d5fb;background:var(--blue-t);border-radius:10px;padding:22px 14px;text-align:center;color:var(--blue);font-weight:600}
+.dropc small{display:block;color:var(--mut);font-weight:500;margin-top:4px}
+.dim{position:absolute;inset:0;background:rgba(24,24,40,.38)}
+.over{position:absolute;top:0;right:0;bottom:0;width:900px;background:var(--bg);box-shadow:-20px 0 60px rgba(0,0,0,.25);display:flex;flex-direction:column;border-radius:12px 0 0 22px}
+.tray{position:absolute;left:0;right:0;bottom:0;height:300px;background:#fff;box-shadow:0 -16px 50px rgba(0,0,0,.2);border-radius:12px 22px 0 0;padding:16px 22px;display:flex;flex-direction:column;gap:12px}
+.tray .strip{display:flex;gap:14px;flex:1;min-height:0;align-items:center}
+.tray .strip .sheet{width:250px;flex:none}
+
+/* focus (C) */
+.track{display:flex;align-items:center;gap:0;padding:12px 22px}
+.tstep{display:flex;align-items:center;gap:10px;padding:9px 16px;border-radius:999px;font-weight:600;color:var(--mut)}
+.tstep.on{background:var(--ink);color:#fff}.tstep.done{color:var(--green-x)}
+.tstep b{font-size:12px;border-radius:999px;padding:0 8px;background:rgba(127,127,140,.18)}
+.tline{flex:0 0 34px;height:2px;background:#d8d8e0}
+.upnext{width:250px;flex:none;padding:14px;display:flex;flex-direction:column;gap:6px}
+.hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center}
+.hero h2{font-size:30px;letter-spacing:-.02em;margin:0}.hero p{margin:0;color:var(--mut);max-width:520px;font-size:15px}
+.bigdrop{width:620px;border:2.5px dashed #c9d5fb;background:var(--blue-t);border-radius:12px;padding:38px;color:var(--blue);font-weight:700;font-size:18px}
+.bigdrop small{display:block;font-weight:500;color:var(--mut);font-size:14px;margin-top:6px}
+.sum{display:flex;gap:14px}.sum .card{padding:14px 22px;text-align:left}.sum b{font-size:24px;display:block}
+@media(max-width:900px){.intro,.grid2{grid-template-columns:1fr}}
+
+/* ---- bold colours, square-ish corners, plain type ---- */
+.pill{border-radius:5px;padding:3px 9px;font-size:12px;font-weight:600}
+.btn{font-weight:500;padding:8px 14px}
+.btn.pri,.btn.dark{font-weight:600}
+.btn.lg{padding:11px 18px;font-size:14px}.btn.sm{padding:5px 11px}
+kbd{font-weight:500;border-bottom-width:1px;border-radius:4px;opacity:.75}
+.ph::before,.ph::after{display:none}
+.thumbs .ph{border-radius:2px}.thumbs.lg .ph,.ft .ph{border-radius:3px}
+.logo{font-weight:600}.logo i{border-radius:6px;font-size:14px}
+.top h1,.page>h1,.intro h2{font-weight:600}
+.side a{border-radius:6px;padding:8px 10px}
+.side a .n{border-radius:4px;font-weight:600}
+.side a .dot{border-radius:2px}
+.stage .v{font-size:24px;font-weight:600}
+.stage .k i{border-radius:4px}
+.oi{border-radius:6px}
+.chips span,.tstep{border-radius:6px;font-weight:500}
+.chips span.on,.tstep.on{font-weight:600}
+.tstep b{border-radius:4px;font-weight:500}
+.col>.ch{font-weight:600;font-size:14px}.col>.ch .n{border-radius:4px}
+.bigdrop{font-size:16px;padding:32px;font-weight:600}
+.hero h2{font-size:24px;font-weight:600}.sum b{font-size:20px;font-weight:600}
+.chk i{border-radius:4px;width:18px;height:18px;font-size:11px}
+.ft b{border-radius:4px}
+.crop{border-radius:1px}.crop .ph{border-radius:1px}
+.tools span{font-weight:500;padding:6px 10px}
+.oid{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:13px;font-weight:500;letter-spacing:0}
+.fw{border-radius:10px}
+.sheet{border-radius:1px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Thiiroo dashboard — redesign options</h1>
+  <p class="lede">What I found walking the app end to end with one sample order, and three directions for fixing it. All three share one visual language (larger type, bold colour-coded status tags, tight corners, one clear primary action) and keep the same flow: import → review → print → done. Photos and order numbers here are placeholders.</p>
+  <div class="tabs" id="tabs">
+    <button data-t="audit" class="on">Audit<small>what gets in the way today</small></button>
+    <button data-t="a">A · Pipeline<small>evolve the current layout</small></button>
+    <button data-t="b">B · Board<small>orders as cards in columns</small></button>
+    <button data-t="c">C · Focus<small>one task at a time</small></button>
+  </div>
+
+  <section class="tab on" id="t-audit">
+    <div class="grid2" id="findings"></div>
+    <h2 class="sec">The three options side by side</h2>
+    <table class="cmp">
+      <tr><th></th><th>A · Pipeline</th><th>B · Board</th><th>C · Focus</th></tr>
+      <tr><td>Idea</td><td>Keep sidebar + list. Put the four stages on top of every product as clickable counters.</td><td>Every order is a card that moves left to right through columns. All products on one screen.</td><td>No queue to manage. The app always shows the next thing to do and a big button for it.</td></tr>
+      <tr><td>Best when</td><td>You scan a list, pick orders, work in batches.</td><td>Several products at once, you want to see everything in flight.</td><td>You sit down, clear the day's orders start to finish.</td></tr>
+      <tr><td>Weak spot</td><td>Least visually new.</td><td>Columns get long at 30+ open orders; needs collapse/scroll rules.</td><td>Picking a specific order out of sequence takes an extra click.</td></tr>
+      <tr><td>Build effort</td><td>Small. Mostly restyle + stage strip + import drawer + Review cleanup.</td><td>Medium. New board screen, review as slide-over, print tray.</td><td>Medium. New single workbench route replacing Queue/Review/Print navigation.</td></tr>
+      <tr><td>Print/crop logic</td><td colspan="3">Untouched in all three. Geometry, crop pipeline, sheet packing and the review gate stay exactly as they are.</td></tr>
+    </table>
+  </section>
+
+  <section class="tab" id="t-a">
+    <div class="intro">
+      <div><h2>A · Pipeline</h2><p class="mut">The current structure, made legible. The flow that used to hide in four sidebar sub-links becomes a strip of four stage cards with live counts. Click a stage to filter the list; every row carries its own next action.</p></div>
+      <div><h4>Changes</h4><ul><li>Stage strip replaces sidebar sub-nav and the Overview stat tiles</li><li>Drop zone is the first stage, not a permanent 288 px rail</li><li>Row-level "Review" / "Print" buttons</li><li>Review: one approve button, checks instead of raw metadata</li></ul></div>
+      <div><h4>Keeps</h4><ul><li>Sidebar, per-product queues, keyboard shortcuts</li><li>Rows/cards toggle, batch select</li><li>All routes, so it can ship screen by screen</li></ul></div>
+    </div>
+    <div class="cap"><b>A1 · Product queue</b><span>stages on top, filtered list below, next action on every row</span></div><div class="fw"><div class="frame" id="a1"></div></div>
+    <div class="cap"><b>A2 · Review</b><span>sidebar collapses, bigger crop, buyer preview inset, checks instead of metadata, one primary action</span></div><div class="fw"><div class="frame" id="a2"></div></div>
+    <div class="cap"><b>A3 · Print</b><span>sheets fill the canvas, one print button, preflight you can tick</span></div><div class="fw"><div class="frame" id="a3"></div></div>
+  </section>
+
+  <section class="tab" id="t-b">
+    <div class="intro">
+      <div><h2>B · Board</h2><p class="mut">Closest to the reference you shared. One board for the whole shop: orders are cards with photo strips and coloured tags, columns are the stages. Review and print open on top of the board, so you never lose your place.</p></div>
+      <div><h4>Changes</h4><ul><li>No sidebar. Products are filter chips</li><li>Inbox column holds the drop zone and unassigned orders</li><li>Review is a slide-over; print is a tray</li><li>Column-level actions: "Print all ready"</li></ul></div>
+      <div><h4>Trade-offs</h4><ul><li>Cards show fewer orders per screen than rows</li><li>Template editing and Add product move to a settings area</li><li>Drag between columns is tempting but must not bypass the review gate</li></ul></div>
+    </div>
+    <div class="cap"><b>B1 · Board</b><span>everything in flight, across all products</span></div><div class="fw"><div class="frame" id="b1"></div></div>
+    <div class="cap"><b>B2 · Review slide-over</b><span>opens from a card, board stays behind</span></div><div class="fw"><div class="frame" id="b2"></div></div>
+    <div class="cap"><b>B3 · Print tray</b><span>pick ready cards, sheets build up in the tray</span></div><div class="fw"><div class="frame" id="b3"></div></div>
+  </section>
+
+  <section class="tab" id="t-c">
+    <div class="intro">
+      <div><h2>C · Focus</h2><p class="mut">Built for clearing the day in one sitting. A progress track across the top, the next job in the middle, a short "up next" list on the left. When review is empty the same space becomes the print step, then the import step.</p></div>
+      <div><h4>Changes</h4><ul><li>Home, Queue, Review and Print collapse into one workbench</li><li>The primary button is always the next step, with its key</li><li>Printing ends with an inline "did it print OK?"</li><li>Empty state doubles as the import screen</li></ul></div>
+      <div><h4>Trade-offs</h4><ul><li>Less overview of older/printed orders (lives behind search and "All orders")</li><li>Largest change in how the app feels day to day</li></ul></div>
+    </div>
+    <div class="cap"><b>C1 · Review step</b><span>the app opens straight into the first order that needs you</span></div><div class="fw"><div class="frame" id="c1"></div></div>
+    <div class="cap"><b>C2 · Print step</b><span>appears when nothing is left to review</span></div><div class="fw"><div class="frame" id="c2"></div></div>
+    <div class="cap"><b>C3 · All caught up</b><span>empty state and import screen in one</span></div><div class="fw"><div class="frame" id="c3"></div></div>
+  </section>
+</div>
+
+<script>
+const $=(id)=>document.getElementById(id);
+const P=['#f6c9a8,#e88f6b','#b9c8f5,#7d94e8','#f3b8d4,#d97fb0','#bfe6c4,#7cc48a','#f7e3a1,#e9bf55','#c9c2f2,#9486e0'];
+const ph=(i,cls='')=>`<i class="ph ${cls}" style="background:linear-gradient(140deg,${P[i%6]})"></i>`;
+const thumbs=(n,off=0,cls='')=>`<span class="thumbs ${cls}">${Array.from({length:n},(_,k)=>ph(k+off)).join('')}</span>`;
+const pill=(t,c='n')=>`<span class="pill ${c}">${t}</span>`;
+const sheet=(off=0,n=6)=>`<div class="sheet">${Array.from({length:6},(_,k)=>`<div class="pol">${k<n?ph(k+off):'<i class="ph blank"></i>'}</div>`).join('')}</div>`;
+const I={search:'<circle cx="8" cy="8" r="5"/><path d="m12 12 4 4"/>',up:'<path d="M9 13V3M5 7l4-4 4 4M3 15h12"/>',print:'<path d="M5 6V2h8v4M5 13H3V7h12v6h-2M5 11h8v5H5z"/>'};
+const ic=(n)=>`<svg class="ic" viewBox="0 0 18 18">${I[n]}</svg>`;
+const ORD=['408-2231847-55021','171-9902314-10477','405-6617203-88310','402-3350921-27764','407-1182560-93015','403-7745108-66209','406-5029377-41182'];
+
+/* ---------- audit ---------- */
+const F=[
+['Whole app','The flow is hidden in the sidebar','Import → review → print is the entire job, but it shows up as four small sub-links under a product. Nothing on screen says where an order is or what to do next.','<b>Fix:</b> make the stages the main navigation, with counts, and give every order a visible next action.'],
+['Whole app','Text is too small and too faint','Base size is 12 px, labels are 9.5 px uppercase mono at 38% black. Fine for a spec sheet, tiring at a print desk.','<b>Fix:</b> 14 px base, 12 px minimum, labels in normal case, muted text at ≥ 60% contrast.'],
+['Review','The busiest screen overflows at 1440 px','The shortcut legend pushes "Hold order" onto two lines and clips the theme toggle; the crop controls run off the right edge; the stage scrolls sideways.','<b>Fix:</b> move shortcuts onto the buttons they trigger, give the crop the centre, drop the fixed 286 px metadata column.'],
+['Review','Two approve buttons, far apart','"Approve all & continue" sits top-right, "Approve photo" bottom-right. The right panel is mostly EXIF, scale and filenames you rarely act on.','<b>Fix:</b> one primary button next to the photo; turn metadata into pass/warn checks, details on demand.'],
+['Queue','A permanent import rail for an occasional action','288 px are reserved for a drop zone although the whole page already accepts drops. Two competing header buttons ("Review queue" and "Import zips").','<b>Fix:</b> import becomes a stage/drop card or drawer; one primary button per screen.'],
+['Queue','Status is a label, not an action','A row says "Needs review" but you must select it, then find the action in the bar below or the header.','<b>Fix:</b> put the action on the row: Review, Print, Reprint.'],
+['Print','Duplicate print buttons, tiny sheets','Print appears in the header and at the bottom of the panel. One sheet floats in a large empty canvas. The "Before you print" list is static text.','<b>Fix:</b> one button, sheets sized to the canvas, a preflight that remembers it was confirmed for this printer.'],
+['Overview','A dashboard with nothing to click','Four counters and an activity log. The counters are not links, so the page is a detour on the way to the queue.','<b>Fix:</b> either make the counters the navigation (A), replace it with the board (B), or drop it (C).'],
+['Navigation','Setup mixed with daily work','Template sits beside Queue/Review/Print; the theme toggle and a permanent "Amazon not connected" card take space on every screen.','<b>Fix:</b> group Templates, Add product, theme and Amazon under setup; show Amazon status as a small chip.'],
+['Empty states','Blank pages','Add product and Crop export are a drop box on an empty page; no hint of what a good SVG looks like or what happens next.','<b>Fix:</b> show the 3 steps and an example beside the drop zone.'],
+];
+$('findings').innerHTML=F.map(f=>`<div class="find"><div class="tag">${f[0]}</div><h3>${f[1]}</h3><p>${f[2]}</p><p>${f[3]}</p></div>`).join('');
+
+/* ---------- shared pieces ---------- */
+const side=(mini)=>mini?`<aside class="side mini"><div class="logo"><i>T</i></div><div style="height:14px"></div><a class="on"><span class="dot" style="background:var(--orange)"></span></a><a><span class="dot" style="background:#7d94e8"></span></a><a><span class="dot" style="background:#7cc48a"></span></a></aside>`:`<aside class="side">
+  <div class="logo" style="padding:0 8px 8px"><i>T</i>Thiiroo</div>
+  <a>Today</a><a>Unassigned <span class="n o">2</span></a>
+  <div class="lab">Products</div>
+  <a class="on"><span class="dot" style="background:var(--orange)"></span>Instant Photo Prints <span class="n">10</span></a>
+  <a><span class="dot" style="background:#7d94e8"></span>Photo Strips <span class="n">3</span></a>
+  <a><span class="dot" style="background:#7cc48a"></span>Name Labels</a>
+  <div class="lab">Setup</div>
+  <a>Templates</a><a>Add product</a><a>Crop export</a>
+  <div class="foot"><b style="color:var(--ink)">Manual import</b><br>Amazon sync not connected</div>
+</aside>`;
+const checks=(extra='')=>`<div class="card checks">
+  <p class="h4">Checks · photo 2</p>
+  <div class="chk"><i>✓</i><div>Sharp enough to print<small>927 dpi at 69.8 mm</small></div></div>
+  <div class="chk"><i>✓</i><div>Matches buyer's framing<small>crop not changed</small></div></div>
+  <div class="chk"><i>✓</i><div>Orientation applied</div></div>
+  <p class="h4" style="margin-top:8px">Order</p>
+  <div class="chk"><i>✓</i><div>Pack of 6 · 6 photos received</div></div>
+  <div class="chk w"><i>!</i><div>Photo 5 is low resolution<small>138 dpi · will look soft</small></div></div>
+  <div class="mut" style="font-size:13px;margin-top:4px">File details ›</div>
+  <div class="sp"></div>
+  <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><b>1 of 6 approved</b><span class="mut">5 left</span></div><div class="prog"><i style="width:17%"></i></div></div>
+  ${extra}
+</div>`;
+const editor=(withBuyer=true)=>`<div class="stagebox">
+  ${withBuyer?`<div class="card buyer"><div class="h4" style="margin-bottom:6px">Buyer's preview</div>${ph(1)}</div>`:''}
+  <div class="crop">${ph(1)}<div class="grid3"></div><span class="pill g chip">927 dpi</span></div>
+  <div class="tools"><span>−</span><span class="v">1.00×</span><span>+</span><i></i><span>⟲</span><span class="v">0°</span><span>⟳</span><i></i><span>Rotate 90°</span><i></i><span>Reset</span></div>
+  <div class="film">${[0,1,2,3,4,5].map(k=>`<div class="ft ${k==1?'cur':''}">${ph(k)}${k==0?'<b>✓</b>':''}</div>`).join('')}
+    <span style="width:14px"></span><button class="btn">Flag</button><button class="btn pri lg">Approve photo <kbd>A</kbd></button></div>
+</div>`;
+
+/* ---------- A ---------- */
+const stages=(on)=>`<div class="stages">
+  <div class="stage card drop"><div class="k" style="color:var(--blue)">${ic('up')} Import</div><div style="font-weight:700;color:var(--blue);margin-top:8px;font-size:16px">Drop order zips here</div><div class="s">or click to browse · 3 imported today</div></div>
+  <div class="stage card att ${on==1?'on':''}"><div class="k"><i>2</i>Review</div><div class="v">4</div><div class="s">orders · 1 with a warning</div><button class="btn sm dark go">Start <kbd>R</kbd></button></div>
+  <div class="stage card rdy ${on==2?'on':''}"><div class="k"><i>3</i>Print</div><div class="v">6</div><div class="s">orders · 7 sheets</div><button class="btn sm go">Print all</button></div>
+  <div class="stage card"><div class="k"><i>✓</i>Done today</div><div class="v">12</div><div class="s">72 prints · 12 sheets</div></div>
+</div>`;
+const rowA=(i,st)=>{const m={rev:[pill('Needs review','o'),'<button class="btn sm dark">Review</button>'],warn:[pill('Needs review','o')+' '+pill('Low DPI · 1 photo','y'),'<button class="btn sm dark">Review</button>'],rdy:[pill('Ready · 1 sheet','g'),'<button class="btn sm">Print</button>'],held:[pill('On hold','p'),'<button class="btn sm">Resume</button>']}[st];
+  return `<div class="row"><span class="cb"></span><div><div class="oid">${ORD[i%7]}</div><div class="mut" style="font-size:12.5px">Pack of ${i==2?12:6} · imported 09:${24+i}</div></div><div>${thumbs(i==2?9:6,i)}${i==2?' <span class="faint">+3</span>':''}</div><div>${m[0]}</div><div class="act">${m[1]}</div></div>`};
+$('a1').innerHTML=side()+`<div class="main">
+  <div class="top"><div><h1>Instant Photo Prints</h1><div class="sub">4×3 in · packs of 6 to 30 · 10 open orders</div></div><div class="sp"></div><div class="search">${ic('search')} Search order ID</div></div>
+  ${stages(1)}
+  <div class="card list"><div class="lhead"><b>Needs review</b><span class="mut">4 orders</span><div class="sp"></div><div class="seg"><span class="on">Needs review</span><span>Ready</span><span>Printed</span><span>All</span></div><div class="seg"><span class="on">Rows</span><span>Cards</span></div></div>
+  ${rowA(0,'warn')}${rowA(1,'rev')}${rowA(2,'rev')}${rowA(3,'rev')}${rowA(4,'held')}
+  <div style="padding:14px 18px" class="faint">↑↓ move · space select · ↵ open</div></div></div>`;
+$('a2').innerHTML=side(1)+`<div class="main">
+  <div class="top"><button class="btn sm">← Queue</button><div><h1 style="font-size:18px">${ORD[0]}</h1></div>${pill('Needs review','o')}<span class="mut">Photo 2 of 6</span><div class="sp"></div><button class="btn">Hold order</button><button class="btn dark">Approve all 6 <kbd>⇧A</kbd></button></div>
+  <div class="rv"><div class="card olist"><p class="h4" style="padding:4px 6px">To review · 4</p>
+    ${[0,1,2,3].map(k=>`<div class="oi ${k==0?'on':''}">${ph(k,'" style="width:34px;height:40px;flex:none;background:linear-gradient(140deg,'+P[k]+')')}<div><div class="oid" style="font-size:13px">${ORD[k].slice(0,11)}…</div><div class="mut" style="font-size:12px">${k==0?'1 of 6 approved':'6 photos'}</div></div></div>`).join('')}</div>
+    ${editor()}${checks()}</div></div>`;
+$('a3').innerHTML=side()+`<div class="main">
+  <div class="top"><button class="btn sm">← Queue</button><div><h1 style="font-size:18px">Print</h1></div><span class="mut">6 orders · 36 photos · 7 sheets</span><div class="sp"></div></div>
+  <div class="pr"><div class="sheets">${[0,1,2,3,4,5].map(k=>`<figure>${sheet(k)}<figcaption><span>Sheet ${k+1} · ${ORD[k].slice(0,11)}…</span><span>6/6</span></figcaption></figure>`).join('')}</div>
+  <div class="card ppanel"><p class="h4">Sheets</p><div class="rc on"><b>One order per sheet</b><small>Cut stacks never mix buyers</small></div><div class="rc"><b>Combine part sheets</b><small>Saves 1 sheet · both IDs in the margin</small></div>
+   <p class="h4" style="margin-top:6px">Printer setup</p><div class="chk"><i>✓</i><div>A4 landscape, margins none, scale 100%<small>confirmed for this printer on 24 Nov</small></div></div><div class="chk w"><i>!</i><div>Headers &amp; footers must be off</div></div>
+   <div class="sp"></div><button class="btn">Save as PDF</button><button class="btn pri lg">${'Print 7 sheets'} <kbd>⌘P</kbd></button><div class="mut" style="font-size:12.5px;text-align:center">You'll be asked to mark them printed afterwards</div></div></div></div>`;
+
+/* ---------- B ---------- */
+const topB=`<div class="bar-top"><div class="logo"><i>T</i>Thiiroo</div><div class="chips"><span class="on">All products</span><span>Instant Photo Prints · 10</span><span>Photo Strips · 3</span></div><div class="sp"></div><div class="search">${ic('search')} Search order ID</div><button class="btn">Setup</button><button class="btn pri">${'Import zips'}</button></div>`;
+const oc=(i,tags,foot='',sel='')=>`<div class="card oc ${sel}"><div class="r"><span class="oid">${ORD[i%7]}</span></div><div class="r">${tags}</div>${thumbs(6,i)}<div class="r mut" style="font-size:12.5px">${foot}</div></div>`;
+const board=(sel)=>`<div class="main">${topB}<div class="col-wrap">
+  <div class="col"><div class="ch">Inbox</div><div class="dropc">${ic('up')}<div>Drop order zips</div><small>one zip per order item</small></div>
+    <div class="card oc"><div class="r"><span class="oid">${ORD[6]}</span></div><div class="r">${pill('Unknown product','y')}</div><button class="btn sm">Choose product</button></div></div>
+  <div class="col"><div class="ch">To review <span class="n">3</span></div>${oc(0,pill('Photo Prints · 6','n')+pill('Low DPI','y'),'Imported 09:24 · 1 of 6 approved')}${oc(1,pill('Photo Prints · 6','n'),'Imported 09:31')}${oc(2,pill('Photo Strips','b'),'Imported 10:02')}</div>
+  <div class="col"><div class="ch">Ready to print <span class="n">3</span><span class="sp"></span><button class="btn sm ${sel?'pri':''}">Print all</button></div>${oc(3,pill('Ready · 1 sheet','g'),'Approved 10:10',sel)}${oc(4,pill('Ready · 1 sheet','g'),'Approved 10:14',sel)}${oc(5,pill('Ready · 2 sheets','g')+pill('Pack of 12','n'),'Approved 10:20')}</div>
+  <div class="col"><div class="ch">Printed <span class="n">2</span></div>${oc(1,pill('Printed','b'),'11:05 · mark cut &amp; packed')}${oc(4,pill('Printed','b'),'11:05 · mark cut &amp; packed')}</div>
+  <div class="col"><div class="ch">Done today <span class="n">12</span></div>${oc(2,pill('Done','n'),'Packed 08:40')}<div class="mut" style="padding:4px">+ 11 more</div></div>
+</div></div>`;
+$('b1').innerHTML=board('');
+$('b2').innerHTML=board('')+`<div class="dim"></div><div class="over">
+  <div class="top"><button class="btn sm">✕</button><h1 style="font-size:18px">${ORD[0]}</h1>${pill('Needs review','o')}${pill('Low DPI','y')}<div class="sp"></div><span class="mut">Order 1 of 3</span><button class="btn sm">‹</button><button class="btn sm">›</button></div>
+  <div class="rv" style="padding:0 20px 20px">${editor()}${checks('<button class="btn dark" style="margin-top:6px">Approve all 6 <kbd>⇧A</kbd></button>')}</div></div>`;
+$('b3').innerHTML=board('sel')+`<div class="tray"><div style="display:flex;align-items:center;gap:12px"><b style="font-size:17px">Print tray</b><span class="mut">2 orders · 12 photos · 2 sheets</span><div class="sp"></div><div class="seg"><span class="on">One order per sheet</span><span>Combine part sheets</span></div><button class="btn sm">✕</button></div>
+  <div class="strip">${sheet(3)}${sheet(4)}<div class="sp"></div><div style="width:290px;display:flex;flex-direction:column;gap:10px"><div class="chk"><i>✓</i><div>A4 landscape, no margins, 100%</div></div><div class="chk w"><i>!</i><div>Headers &amp; footers off</div></div><button class="btn">Save as PDF</button><button class="btn pri lg">Print 2 sheets <kbd>⌘P</kbd></button></div></div></div>`;
+
+/* ---------- C ---------- */
+const topC=`<div class="bar-top"><div class="logo"><i>T</i>Thiiroo</div><div class="chips"><span class="on">Instant Photo Prints</span><span>Photo Strips · 3</span></div><div class="sp"></div><div class="search">${ic('search')} Find any order</div><button class="btn">All orders</button><button class="btn">Setup</button></div>`;
+const track=(s)=>{const st=[['Import','3 new'],['Review','4 left'],['Print','6 ready'],['Done','12 today']];
+  return `<div class="track">${st.map((x,i)=>`<div class="tstep ${i==s?'on':i<s?'done':''}">${i<s?'✓ ':''}${x[0]} <b>${x[1]}</b></div>${i<3?'<div class="tline"></div>':''}`).join('')}<div class="sp"></div><button class="btn sm">${'+ Import zips'}</button></div>`};
+const upnext=(mode)=>`<div class="card upnext"><p class="h4" style="padding:4px 6px">${mode=='p'?'In this print run':'Up next'}</p>
+  ${[0,1,2,3].map(k=>`<div class="oi ${k==0&&mode!='p'?'on':''}">${ph(k,'" style="width:34px;height:40px;flex:none;background:linear-gradient(140deg,'+P[k]+')')}<div><div class="oid" style="font-size:13px">${ORD[k].slice(0,11)}…</div><div class="mut" style="font-size:12px">${mode=='p'?'1 sheet · 6 photos':k==0?'1 of 6 approved':k==2?'12 photos':'6 photos'}</div></div></div>`).join('')}
+  <div class="sp"></div><div class="mut" style="font-size:12.5px;padding:6px">${mode=='p'?'+ 2 more orders':'Then: print 6 ready orders'}</div></div>`;
+$('c1').innerHTML=`<div class="main">${topC}${track(1)}<div class="rv" style="padding:0 22px 20px">${upnext()}${editor()}${checks('<button class="btn dark" style="margin-top:6px">Approve all 6 &amp; next order <kbd>⇧A</kbd></button><button class="btn">Hold order</button>')}</div></div>`;
+$('c2').innerHTML=`<div class="main">${topC}${track(2)}<div class="rv" style="padding:0 22px 20px">${upnext('p')}
+  <div class="stagebox" style="justify-content:flex-start;padding:22px;gap:18px"><div style="align-self:stretch;display:flex;align-items:center;gap:12px"><b style="font-size:20px">6 orders are ready · 7 sheets</b><div class="sp"></div><div class="seg" style="background:#fff"><span class="on">One order per sheet</span><span>Combine part sheets</span></div></div>
+   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-self:stretch">${[0,1,2,3,4,5].map(k=>sheet(k)).join('')}</div></div>
+  <div class="card checks"><p class="h4">Before you print</p><div class="chk"><i>✓</i><div>A4 landscape</div></div><div class="chk"><i>✓</i><div>Margins none · scale 100%</div></div><div class="chk w"><i>!</i><div>Headers &amp; footers off<small>check once per printer</small></div></div>
+   <div class="sp"></div><button class="btn">Save as PDF</button><button class="btn pri lg">Print 7 sheets <kbd>⌘P</kbd></button>
+   <div class="card" style="box-shadow:none;background:var(--bg);padding:12px;font-size:13px"><b>After the dialog closes</b><div class="mut">"Did all 7 sheets print OK?" → Yes, mark printed / Reprint some</div></div></div></div></div>`;
+$('c3').innerHTML=`<div class="main">${topC}${track(0)}<div class="hero">
+  <h2>All caught up</h2><p>Nothing to review or print. Download the customization zips from Seller Central and drop them here. Everything stays on this machine.</p>
+  <div class="bigdrop">${ic('up')}<div>Drop Amazon order zips</div><small>or click to browse · one zip per order item</small></div>
+  <div class="sum"><div class="card"><b>12</b><span class="mut">orders done today</span></div><div class="card"><b>72</b><span class="mut">prints</span></div><div class="card"><b>12</b><span class="mut">sheets used</span></div></div></div></div>`;
+
+/* ---------- tabs + scale ---------- */
+function fit(){document.querySelectorAll('.fw').forEach(w=>{const s=w.clientWidth/1280;if(!s)return;const f=w.firstElementChild;f.style.transform=`scale(${s})`;w.style.height=780*s+'px'})}
+$('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.id==='t-'+b.dataset.t));
+  location.hash=b.dataset.t;fit();scrollTo(0,0)});
+addEventListener('resize',fit);
+const h=location.hash.slice(1);if(h&&$('t-'+h))document.querySelector(`#tabs button[data-t="${h}"]`).click();
+fit();
+</script>
+</body>
+</html>

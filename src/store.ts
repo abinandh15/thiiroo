@@ -15,6 +15,9 @@ import {
 import type { Product } from './products';
 import { deleteActivityFor, deleteOrder, loadActivity, loadOrders, logActivity, saveOrder } from './lib/persist';
 
+import { LAYOUT_LS_KEY, loadLayout } from './lib/layout';
+import type { LayoutMode } from './lib/layout';
+
 export const orderKey = (o: Pick<Order, 'id' | 'itemId'>) => `${o.id}::${o.itemId}`;
 
 /** The template an order prints with: its product's (override-aware), or the Instant Photo
@@ -61,6 +64,9 @@ interface AppState {
   batchKeys: string[];
   combineMode: 'strict' | 'combine';
   theme: 'light' | 'dark';
+  /** which home/navigation layout the app uses (Pipeline / Board / Focus) */
+  layout: LayoutMode;
+  setLayout(l: LayoutMode): void;
   guides: { greyBars: boolean; cropMarks: boolean; cutLines: boolean; orderId: boolean; slotNumbers: boolean };
   /** per-product template overrides (edited in the Template screen); absent = factory template */
   templateOverrides: Record<string, TemplateDescriptor>;
@@ -166,6 +172,7 @@ export const useStore = create<AppState>((set, get) => ({
   batchKeys: [],
   combineMode: 'strict',
   theme: (localStorage.getItem('thiiroo-theme') as 'light' | 'dark') || 'light',
+  layout: loadLayout(),
   guides: { greyBars: true, cropMarks: true, cutLines: true, orderId: true, slotNumbers: false },
   templateOverrides: loadTemplateOverrides(),
   customProducts: getCustomProducts(),
@@ -422,6 +429,11 @@ export const useStore = create<AppState>((set, get) => ({
 
   setCombineMode(m) {
     set({ combineMode: m });
+  },
+
+  setLayout(l) {
+    localStorage.setItem(LAYOUT_LS_KEY, l);
+    set({ layout: l });
   },
 
   toggleTheme() {

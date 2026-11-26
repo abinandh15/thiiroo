@@ -12,7 +12,7 @@ const NEXT_ROLE: Record<ShapeRole, ShapeRole> = { photo: 'cut', cut: 'ignore', i
 const MAX_ARTWORK_BYTES = 1_500_000;
 
 /** one variant per line: "B0XXXXXXXX 12" or "B0XXXXXXXX, 12"; pack size optional */
-function parseVariants(text: string): { variants: ProductVariant[]; bad: string[] } {
+export function parseVariants(text: string): { variants: ProductVariant[]; bad: string[] } {
   const variants: ProductVariant[] = [];
   const bad: string[] = [];
   for (const line of text.split('\n').map((l) => l.trim()).filter(Boolean)) {

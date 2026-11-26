@@ -78,6 +78,43 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
     </>
   );
 
+  // drag-to-swap, shared by both layouts (screen only: print never passes onSwapSlots).
+  // Only filled slots can be dragged or dropped on; the caller swaps the two photos.
+  const swap = (slot: number, filled: boolean) => {
+    const draggable = !!onSwapSlots && filled;
+    return {
+      cls: [
+        draggable ? 'swappable' : '',
+        dragSlot === slot ? 'dragging' : '',
+        overSlot === slot && dragSlot !== null && dragSlot !== slot ? 'dropover' : '',
+      ].filter(Boolean).join(' '),
+      props: {
+        draggable,
+        onDragStart: draggable ? (e: React.DragEvent) => {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(slot));
+          setDragSlot(slot);
+        } : undefined,
+        onDragEnd: draggable ? () => { setDragSlot(null); setOverSlot(null); } : undefined,
+        onDragOver: onSwapSlots && filled ? (e: React.DragEvent) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setOverSlot(slot);
+        } : undefined,
+        onDragLeave: onSwapSlots ? () => setOverSlot((s) => (s === slot ? null : s)) : undefined,
+        onDrop: onSwapSlots && filled ? (e: React.DragEvent) => {
+          e.preventDefault();
+          // only a drag that started on one of this sheet's slots counts: a file or text dropped
+          // from elsewhere must never reorder photos
+          const from = dragSlot;
+          setDragSlot(null);
+          setOverSlot(null);
+          if (from !== null && from !== slot && model.slots[from]) onSwapSlots(from, slot);
+        } : undefined,
+      },
+    };
+  };
+
   // free-form layout imported from an SVG: artwork underneath, photo frames on top
   if (c) {
     return (
@@ -97,14 +134,19 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
         ))}
         {c.photos.map((r, slot) => {
           const fill = model.slots[slot];
+          const sw = swap(slot, !!fill);
           return (
             <div
               key={slot}
-              className={`cphoto${fill ? '' : ' blank'}`}
+              className={`cphoto${fill ? '' : ' blank'}${sw.cls ? ` ${sw.cls}` : ''}`}
               style={{ left: u(r.x), top: u(r.y), width: u(r.w), height: u(r.h) }}
+              {...sw.props}
             >
               {fill ? (
-                <img src={blobUrl(fill.photo.cropBlob)} alt={fill.photo.label} draggable={false} />
+                <>
+                  <img src={blobUrl(fill.photo.cropBlob)} alt={fill.photo.label} draggable={false} />
+                  {guides.slotNumbers && <span className="slotnum screen-only">{slot + 1}</span>}
+                </>
               ) : (
                 guides.slotNumbers && <span className="screen-only">{slot + 1}</span>
               )}
@@ -155,37 +197,13 @@ export function Sheet({ model, unit, guides, shadow, onSwapSlots, template }: Sh
         const r = slotRect(slot, t);
         const fill = model.slots[slot];
         const url = fill ? blobUrl(fill.photo.cropBlob) : undefined;
-        const draggable = !!onSwapSlots && !!fill;
+        const sw = swap(slot, !!fill);
         return (
           <div
             key={slot}
-            className={[
-              'pcard',
-              draggable ? 'swappable' : '',
-              dragSlot === slot ? 'dragging' : '',
-              overSlot === slot && dragSlot !== null && dragSlot !== slot ? 'dropover' : '',
-            ].filter(Boolean).join(' ')}
+            className={`pcard${sw.cls ? ` ${sw.cls}` : ''}`}
             style={{ left: u(r.x), top: u(r.y), width: u(r.w), height: u(r.h) }}
-            draggable={draggable}
-            onDragStart={draggable ? (e) => {
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/plain', String(slot));
-              setDragSlot(slot);
-            } : undefined}
-            onDragEnd={draggable ? () => { setDragSlot(null); setOverSlot(null); } : undefined}
-            onDragOver={onSwapSlots && fill ? (e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-              setOverSlot(slot);
-            } : undefined}
-            onDragLeave={onSwapSlots ? () => setOverSlot((s) => (s === slot ? null : s)) : undefined}
-            onDrop={onSwapSlots && fill ? (e) => {
-              e.preventDefault();
-              const from = Number(e.dataTransfer.getData('text/plain'));
-              setDragSlot(null);
-              setOverSlot(null);
-              if (Number.isInteger(from) && from !== slot && model.slots[from]) onSwapSlots(from, slot);
-            } : undefined}
+            {...sw.props}
           >
             <div
               className={`photo${fill ? '' : ' blank'}`}

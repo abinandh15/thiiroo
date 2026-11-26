@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useHome } from '../lib/useHome';
 import { allApproved, orderKey, sheetCount, useStore } from '../store';
-import { productPath } from '../products';
 import { useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
 import { slotsPerSheet } from '../lib/geometry';
 import { blankCount, buildSheets } from '../lib/sheets';
@@ -12,6 +12,7 @@ import { printSheets } from '../lib/printJob';
 export function BatchPrint() {
   const navigate = useNavigate();
   const product = useRouteProduct();
+  const homeNav = useHome(product.id);
   const orders = useProductOrders(product);
   const batchKeys = useStore((s) => s.batchKeys);
   const combineMode = useStore((s) => s.combineMode);
@@ -70,7 +71,7 @@ export function BatchPrint() {
   return (
     <div className="main">
       <header className="header">
-        <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
+        <a onClick={() => navigate(homeNav.path)} style={{ cursor: 'pointer', fontSize: 12 }}>← {homeNav.label}</a>
         <span className="title">Batch print</span>
         <span className="crumb mono">
           {printable.length} orders · {totalPhotos} photos · {sheets.length} sheets
@@ -95,8 +96,8 @@ export function BatchPrint() {
                 ready order lands here automatically.
               </div>
               <div className="actions">
-                <button className="btn primary" onClick={() => navigate(productPath(product.id, 'queue'))}>
-                  Open queue
+                <button className="btn primary" onClick={() => navigate(homeNav.path)}>
+                  Open {homeNav.label.toLowerCase()}
                 </button>
               </div>
             </div>

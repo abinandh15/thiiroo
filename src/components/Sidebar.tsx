@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
 import { listProducts, resolveProduct } from '../products';
+import { LayoutSwitch } from './LayoutSwitch';
+import { ThemeToggle } from './common';
 
 type AmazonStatus =
   | { state: 'offline' } // backend not running — manual import only
@@ -109,6 +111,11 @@ export function Sidebar() {
                   {[p.asin, p.sizeLabel].filter(Boolean).join(' · ')}
                 </span>
               </span>
+              {c.open > 0 && (
+                <span className={`count${c.review ? ' warn' : ''}`} title={`${c.open} open · ${c.review} to review`}>
+                  {c.open}
+                </span>
+              )}
             </NavLink>
             {inProduct && (
               <div className="side-sub">
@@ -128,7 +135,12 @@ export function Sidebar() {
       <div className="side-label">Tools</div>
       {link('/crop-export', 'Crop export')}
 
-      <AmazonCard />
+      <div className="side-foot">
+        <div className="side-label">Layout</div>
+        <LayoutSwitch />
+        <ThemeToggle />
+        <AmazonCard />
+      </div>
     </nav>
   );
 }

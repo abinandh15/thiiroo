@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { downloadOrderCrops } from '../lib/cropDownload';
 import { orderKey, sheetCount, useStore } from '../store';
 import type { Order } from '../lib/types';
 import { blobUrl, timeHM } from '../lib/format';
-import { ImportButton, StatusPill, ThemeToggle } from '../components/common';
+import { ImportButton, StatusPill } from '../components/common';
+import { ImportDrop } from '../components/ImportDrop';
+import '../styles/pipeline.css';
 import { listProducts, packSizeOf, packWarning, productPath, resolveProduct } from '../products';
 import { aspectWarning, useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
 
@@ -17,7 +20,6 @@ export function Queue() {
   const otherProducts = listProducts().filter((p) => p.id !== product.id);
   const unassignedCount = allOrders.filter((o) => !resolveProduct(o)).length;
   const assignProduct = useStore((s) => s.assignProduct);
-  const importQueue = useStore((s) => s.importQueue);
   const failedImports = useStore((s) => s.failedImports);
   const retryFailed = useStore((s) => s.retryFailed);
   const dismissFailed = useStore((s) => s.dismissFailed);
@@ -44,9 +46,8 @@ export function Queue() {
   };
   const [query, setQuery] = useState('');
   const [focusIdx, setFocusIdx] = useState(0);
-  const [drag, setDrag] = useState(false);
+  const [, setDrag] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const counts = {
     all: orders.length,
@@ -111,12 +112,50 @@ export function Queue() {
     setSelection(next);
   }
 
-  const importing = importQueue.filter((q) => q.state === 'decoding' || q.state === 'queued');
-  const doneCount = importQueue.filter((q) => q.state === 'done' || q.state === 'skipped').length;
+  const isReviewStatus = (o: Order) => o.status === 'needs_review' || o.status === 'held';
+  const hasWarning = (o: Order) =>
+    o.photos.some((p) => p.missing || p.dpi < 150) || !!packWarning(o);
+  const reviewOrders = orders.filter(isReviewStatus);
+  const readyOrders = orders.filter((o) => o.status === 'ready');
+  const donePast = orders.filter((o) => o.status === 'printed' || o.status === 'done');
+  const reviewWarn = reviewOrders.filter(hasWarning).length;
+  const readySheets = readyOrders.reduce((n, o) => n + sheetCount(o), 0);
+  const startOfToday = new Date().setHours(0, 0, 0, 0);
+  const printedToday = donePast.filter((o) => (o.printedAt ?? 0) >= startOfToday).length;
+  const openCount = reviewOrders.length + readyOrders.length;
+  const filterName: Record<Filter, string> = {
+    all: 'All orders', review: 'Needs review', ready: 'Ready', printed: 'Printed',
+  };
+
+  function rowAction(o: Order) {
+    const k = encodeURIComponent(orderKey(o));
+    if (isReviewStatus(o)) return { label: 'Review', cls: 'btn sm dark', to: productPath(product.id, `review/${k}`) };
+    return {
+      label: o.status === 'ready' ? 'Print' : 'Reprint',
+      cls: 'btn sm',
+      to: productPath(product.id, `print/${k}`),
+    };
+  }
+  function ActionBtn({ o }: { o: Order }) {
+    const a = rowAction(o);
+    return (
+      <button className={a.cls} onClick={(e) => { e.stopPropagation(); navigate(a.to); }}>{a.label}</button>
+    );
+  }
+  function WarnPills({ o }: { o: Order }) {
+    const lowDpi = o.photos.filter((p) => !p.missing && p.dpi < 150).length;
+    const missing = o.photos.filter((p) => p.missing).length;
+    return (
+      <>
+        {lowDpi > 0 && <span className="pill warn">Low DPI · {lowDpi}</span>}
+        {missing > 0 && <span className="pill warn">{missing} missing</span>}
+      </>
+    );
+  }
 
   return (
     <div
-      className="main"
+      className="main pl-page"
       onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
       onDrop={(e) => {
@@ -127,37 +166,62 @@ export function Queue() {
     >
       <header className="header">
         <span className="title">{product.name}</span>
-        <span className="crumb">/ Queue</span>
+        <span className="pl-sub">
+          {product.sizeLabel} · {openCount} open order{openCount !== 1 ? 's' : ''}
+        </span>
         <span className="spacer" />
         <div className="search">
           <input ref={searchRef} placeholder="Search order ID" value={query} onChange={(e) => setQuery(e.target.value)} />
           <span className="key">/</span>
         </div>
-        <ThemeToggle />
-        <button className="btn" onClick={() => navigate(productPath(product.id, 'review'))}>Review queue →</button>
         <ImportButton />
       </header>
 
-      <div className="toolbar">
-        <div className="seg">
-          {(
-            [
-              ['all', `All ${counts.all}`],
-              ['review', `Needs review ${counts.review}`],
-              ['ready', `Ready ${counts.ready}`],
-              ['printed', `Printed ${counts.printed}`],
-            ] as [Filter, string][]
-          ).map(([f, label]) => (
-            <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
-              {label}
-            </button>
-          ))}
+      <div className="pl-stages">
+        <div className="pl-stage pl-import card">
+          <ImportDrop compact />
         </div>
-        <span className="spacer" style={{ flex: 1 }} />
-        <span className="kbd-legend header">↑↓ move · space select · ↵ open</span>
-        <div className="seg view-seg">
-          <button className={view === 'rows' ? 'on' : ''} onClick={() => setViewPersist('rows')}>Rows</button>
-          <button className={view === 'cards' ? 'on' : ''} onClick={() => setViewPersist('cards')}>Cards</button>
+        <div
+          className={`pl-stage card att${filter === 'review' ? ' on' : ''}`}
+          onClick={() => setFilter('review')}
+        >
+          <div className="pl-k"><i>2</i>Review</div>
+          <div className="pl-v">{reviewOrders.length}</div>
+          <div className="pl-s">orders · {reviewWarn} with a warning</div>
+          <button
+            className="btn sm dark pl-go"
+            disabled={reviewOrders.length === 0}
+            onClick={(e) => { e.stopPropagation(); navigate(productPath(product.id, 'review')); }}
+          >
+            Start
+          </button>
+        </div>
+        <div
+          className={`pl-stage card rdy${filter === 'ready' ? ' on' : ''}`}
+          onClick={() => setFilter('ready')}
+        >
+          <div className="pl-k"><i>3</i>Print</div>
+          <div className="pl-v">{readyOrders.length}</div>
+          <div className="pl-s">orders · {readySheets} sheet{readySheets !== 1 ? 's' : ''}</div>
+          <button
+            className="btn sm pl-go"
+            disabled={readyOrders.length === 0}
+            onClick={(e) => {
+              e.stopPropagation();
+              buildBatch(readyOrders.map(orderKey));
+              navigate(productPath(product.id, 'print-batch'));
+            }}
+          >
+            Print all
+          </button>
+        </div>
+        <div
+          className={`pl-stage card${filter === 'printed' ? ' on' : ''}`}
+          onClick={() => setFilter('printed')}
+        >
+          <div className="pl-k"><i>✓</i>Done</div>
+          <div className="pl-v">{donePast.length}</div>
+          <div className="pl-s">orders · {printedToday} printed today</div>
         </div>
       </div>
 
@@ -212,17 +276,38 @@ export function Queue() {
         </div>
       )}
 
-      <div className="queue-body">
-        <div className="queue-table-col">
+      <div className="card pl-list">
+        <div className="pl-lhead">
+          <b>{filterName[filter]}</b>
+          <span className="pl-count">{visible.length} order{visible.length !== 1 ? 's' : ''}</span>
+          <span className="spacer" />
+          <div className="seg">
+            {(
+              [
+                ['all', `All ${counts.all}`],
+                ['review', `Needs review ${counts.review}`],
+                ['ready', `Ready ${counts.ready}`],
+                ['printed', `Printed ${counts.printed}`],
+              ] as [Filter, string][]
+            ).map(([f, label]) => (
+              <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="seg view-seg">
+            <button className={view === 'rows' ? 'on' : ''} onClick={() => setViewPersist('rows')}>Rows</button>
+            <button className={view === 'cards' ? 'on' : ''} onClick={() => setViewPersist('cards')}>Cards</button>
+          </div>
+        </div>
           {view === 'rows' && (
             <div className="qhead">
               <span />
               <span>Order ID</span>
               <span>Item · Files</span>
               <span>Crops</span>
-              <span>Qty</span>
               <span>Status</span>
-              <span>Imported</span>
+              <span />
             </div>
           )}
           <div className={`queue-scroll${view === 'cards' ? ' as-cards' : ''}`}>
@@ -286,7 +371,6 @@ export function Queue() {
                         Item {o.itemId} · {packSizeOf(o) ? `pack of ${packSizeOf(o)} · ` : ''}{o.photos.length} JPGs · {timeHM(o.importedAt)}
                       </div>
                       {packWarning(o) && <div className="warnline">{packWarning(o)}</div>}
-                    {aspectWarning(o, template) && <div className="warnline">{aspectWarning(o, template)}</div>}
                       {aspectWarning(o, template) && <div className="warnline">{aspectWarning(o, template)}</div>}
                       {lowDpi > 0 && <div className="warnline">{lowDpi} photo{lowDpi > 1 ? 's' : ''} below 150 DPI</div>}
                       {missing > 0 && <div className="warnline">{missing} image{missing > 1 ? 's' : ''} missing from zip</div>}
@@ -295,6 +379,7 @@ export function Queue() {
                           status={o.status}
                           extra={o.status === 'ready' ? `${sheetCount(o)} sheet${sheetCount(o) > 1 ? 's' : ''}` : undefined}
                         />
+                        <ActionBtn o={o} />
                       </div>
                     </div>
                   );
@@ -303,8 +388,6 @@ export function Queue() {
             )}
             {view === 'rows' && visible.map((o, i) => {
               const k = orderKey(o);
-              const lowDpi = o.photos.filter((p) => !p.missing && p.dpi < 150).length;
-              const missing = o.photos.filter((p) => p.missing).length;
               const isReview = o.status === 'needs_review' || o.status === 'held';
               const isPrinted = o.status === 'printed' || o.status === 'done';
               return (
@@ -321,15 +404,19 @@ export function Queue() {
                   onDoubleClick={() => openOrder(o)}
                 >
                   <input type="checkbox" checked={selection.has(k)} readOnly />
-                  <span className="oid">{o.id}</span>
+                  <span>
+                    <div className="oid">{o.id}</div>
+                    <div className="pl-meta mono">
+                      {o.qty > 1 ? `×${o.qty} · ` : ''}imported {timeHM(o.importedAt)}
+                    </div>
+                  </span>
                   <span>
                     <div>
                       Item <span className="mono">{o.itemId}</span>{' '}
                       <span className="faint mono">· {packSizeOf(o) ? `pack of ${packSizeOf(o)} · ` : ''}{o.photos.length} buyer JPGs</span>
                     </div>
                     {packWarning(o) && <div className="warnline">{packWarning(o)}</div>}
-                    {lowDpi > 0 && <div className="warnline">{lowDpi} photo{lowDpi > 1 ? 's' : ''} below 150 DPI</div>}
-                    {missing > 0 && <div className="warnline">{missing} image{missing > 1 ? 's' : ''} referenced but missing from zip</div>}
+                    {aspectWarning(o, template) && <div className="warnline">{aspectWarning(o, template)}</div>}
                   </span>
                   <span className="thumbstrip">
                     {o.photos.map((p) =>
@@ -345,14 +432,14 @@ export function Queue() {
                       )
                     )}
                   </span>
-                  <span className="mono">{o.qty}</span>
-                  <span>
+                  <span className="pl-status">
                     <StatusPill
                       status={o.status}
                       extra={o.status === 'ready' ? `${sheetCount(o)} sheet${sheetCount(o) > 1 ? 's' : ''}` : undefined}
                     />
+                    <WarnPills o={o} />
                   </span>
-                  <span className="mono faint">{timeHM(o.importedAt)}</span>
+                  <ActionBtn o={o} />
                 </div>
               );
             })}
@@ -389,6 +476,13 @@ export function Queue() {
                   Reopen review
                 </button>
               )}
+              <button
+                className="btn sm"
+                title="Save the selected orders' photos as JPEGs, cropped as positioned and trimmed to this template's frame (.zip)"
+                onClick={() => void downloadOrderCrops(selectedOrders, template)}
+              >
+                Download crops
+              </button>
               <button
                 className="btn sm"
                 onClick={() => markPrinted(selectedOrders.map(orderKey), false)}
@@ -440,82 +534,7 @@ export function Queue() {
               </button>
             </div>
           )}
-        </div>
-
-        <aside className="import-rail">
-          <div
-            className={`dropzone${drag ? ' drag' : ''}`}
-            onClick={() => fileRef.current?.click()}
-          >
-            <div className="icon">↓</div>
-            <div className="t">Drop Amazon order zips</div>
-            <div className="s">One zip per order item — drop as many as you like. Nothing leaves this machine.</div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".zip"
-              multiple
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const files = Array.from(e.target.files ?? []);
-                e.target.value = '';
-                void importFiles(files);
-              }}
-            />
-          </div>
-
-          {importQueue.length > 0 && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span className="card-title" style={{ fontSize: 12 }}>Importing</span>
-                <span className="mono faint" style={{ fontSize: 10.5 }}>
-                  {doneCount} of {importQueue.length}
-                </span>
-              </div>
-              <div className="progress-track" style={{ marginBottom: 10 }}>
-                <div
-                  className="progress-fill"
-                  style={{ width: `${(doneCount / Math.max(1, importQueue.length)) * 100}%` }}
-                />
-              </div>
-              <div className="import-list">
-                {importQueue.map((q) => (
-                  <div key={q.fileName} className={`import-item${q.state === 'error' ? ' err' : ''}`}>
-                    {q.state === 'done' ? (
-                      <span className="ok-mark">✓</span>
-                    ) : q.state === 'skipped' ? (
-                      <span className="faint">=</span>
-                    ) : q.state === 'decoding' ? (
-                      <span className="spin" />
-                    ) : q.state === 'error' ? (
-                      <span>×</span>
-                    ) : (
-                      <span className="faint">○</span>
-                    )}
-                    <span className="nm">{q.fileName}</span>
-                    <span className="st">
-                      {q.state === 'done' || q.state === 'skipped'
-                        ? q.detail
-                        : q.state === 'decoding'
-                          ? q.detail ?? 'decoding'
-                          : q.state}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {importing.length === 0 && importQueue.length > 0 && (
-            <button className="btn sm" onClick={() => useStore.setState({ importQueue: [] })}>Clear list</button>
-          )}
-
-          <div className="rail-note" style={{ marginTop: 'auto' }}>
-            <strong style={{ color: 'var(--ink-muted)' }}>Where this comes from</strong>
-            <br />
-            Seller Central → Manage Orders → Customization Info → Download zip. Phase 3 replaces this panel with an
-            Amazon inbox; drop stays as the fallback.
-          </div>
-        </aside>
+        <div className="pl-legend">↑↓ move · space select · ↵ open · / search</div>
       </div>
     </div>
   );
