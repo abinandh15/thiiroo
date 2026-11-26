@@ -1,16 +1,30 @@
 import { create } from 'zustand';
 import type { ActivityEvent, ImportProgress, Order, Photo, Placement } from './lib/types';
 import { cropPhoto, parseOrderZip } from './lib/ingest';
-import { printDpi, SLOTS_PER_SHEET } from './lib/geometry';
+import { DEFAULT_TEMPLATE, DPI_FLOOR, photoFrame, printDpi, slotsPerSheet } from './lib/geometry';
 import type { TemplateDescriptor } from './lib/geometry';
-import { getCustomProducts, getProduct, saveCustomProducts } from './products';
+import {
+  findByAsin,
+  getCustomProducts,
+  getLearnedAsins,
+  getProduct,
+  resolveProduct,
+  saveCustomProducts,
+  saveLearnedAsins,
+} from './products';
 import type { Product } from './products';
 import { deleteActivityFor, deleteOrder, loadActivity, loadOrders, logActivity, saveOrder } from './lib/persist';
 
 export const orderKey = (o: Pick<Order, 'id' | 'itemId'>) => `${o.id}::${o.itemId}`;
 
+/** The template an order prints with: its product's (override-aware), or the Instant Photo
+ *  Prints one while the order is still unassigned. */
+export function orderTemplate(o: Pick<Order, 'asin' | 'productId'>): TemplateDescriptor {
+  const p = resolveProduct(o);
+  return p ? effectiveTemplate(useStore.getState(), p.id) : DEFAULT_TEMPLATE;
+}
 export function sheetsPerCopy(o: Order): number {
-  return Math.max(1, Math.ceil(o.photos.length / SLOTS_PER_SHEET));
+  return Math.max(1, Math.ceil(o.photos.length / Math.max(1, slotsPerSheet(orderTemplate(o)))));
 }
 export function sheetCount(o: Order): number {
   return sheetsPerCopy(o) * o.qty;
@@ -69,6 +83,11 @@ interface AppState {
   setStatus(key: string, status: Order['status']): void;
   markPrinted(keys: string[], alsoDone: boolean): void;
   removeOrder(key: string): void;
+  /** Print these orders with the given product's template. Orders that actually change
+   *  template get their DPI recomputed and go back through review (approvals cleared).
+   *  `remember` also ties each order's unknown ASIN to the product, which routes every other
+   *  unassigned order with that ASIN, and all future ones, the same way. */
+  assignProduct(keys: string[], productId: string, remember: boolean): void;
   buildBatch(keys: string[]): void;
   setCombineMode(m: 'strict' | 'combine'): void;
   toggleTheme(): void;
@@ -107,6 +126,33 @@ async function persistAndLog(o: Order, event: string) {
   const ev: ActivityEvent = { at: Date.now(), orderId: o.id, event, photos: o.photos.length, status: o.status };
   await logActivity(ev);
   useStore.setState((s) => ({ activity: [ev, ...s.activity].slice(0, 30) }));
+}
+
+/** Point the chosen orders at `product`. An order whose template really changes is re-judged
+ *  against the new photo frame: DPI recomputed, approvals cleared, back to needs_review (a held
+ *  order stays held). One that already resolved to this product is left exactly as it is. */
+function applyAssignment(chosen: Set<string>, product: Product, before: Map<string, string | undefined>) {
+  const t = effectiveTemplate(useStore.getState(), product.id);
+  useStore.setState((s) => ({
+    orders: s.orders.map((o) => {
+      const key = orderKey(o);
+      if (!chosen.has(key) || before.get(key) === product.id) return o;
+      // already printed: this is history, so only the routing changes
+      const finished = o.status === 'printed' || o.status === 'done';
+      const next: Order = {
+        ...o,
+        productId: product.id,
+        photos: o.photos.map((p) => {
+          if (p.missing) return p;
+          const dpi = printDpi(p.crop, effectivePlacement(p).scale, photoFrame(t, p.crop));
+          return { ...p, dpi, approved: finished ? p.approved : false, flagged: p.flagged || dpi < DPI_FLOOR };
+        }),
+        status: finished || o.status === 'held' ? o.status : 'needs_review',
+      };
+      void persistAndLog(next, `Template set to ${product.name}`);
+      return next;
+    }),
+  }));
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -149,9 +195,17 @@ export const useStore = create<AppState>((set, get) => ({
         }));
       setProg({ state: 'decoding' });
       try {
-        const order = await parseOrderZip(file, (done, total) =>
-          setProg({ photosDone: done, photosTotal: total, detail: `decoding ${done}/${total}` })
+        const order = await parseOrderZip(
+          file,
+          (done, total) => setProg({ photosDone: done, photosTotal: total, detail: `decoding ${done}/${total}` }),
+          (asin, crop) => {
+            const p = findByAsin(asin)?.product;
+            return p ? photoFrame(effectiveTemplate(get(), p.id), crop) : undefined;
+          }
         );
+        // freeze the routing at import: a later registry change must not move an order
+        // that is already reviewed onto another template
+        order.productId = resolveProduct(order)?.id;
         const key = orderKey(order);
         const existing = get().orders.find((o) => orderKey(o) === key);
         if (existing) {
@@ -166,7 +220,10 @@ export const useStore = create<AppState>((set, get) => ({
           continue;
         }
         set((s) => ({ orders: [...s.orders, order] }));
-        setProg({ state: 'done', detail: `${order.photos.length}` });
+        setProg({
+          state: 'done',
+          detail: `${order.photos.length} · ${resolveProduct(order)?.name ?? 'needs a template'}`,
+        });
         await persistAndLog(order, `Imported from ${file.name}`);
       } catch (err) {
         setProg({ state: 'error', detail: (err as Error).message });
@@ -192,6 +249,19 @@ export const useStore = create<AppState>((set, get) => ({
 
   replaceDuplicates(fileNames) {
     const toApply = get().duplicateImports.filter((d) => fileNames.includes(d.fileName));
+    // a replaced order keeps the template it was routed or hand-assigned to
+    for (const d of toApply) {
+      const existing = get().orders.find((o) => orderKey(o) === orderKey(d.fresh));
+      const product = existing && resolveProduct(existing);
+      if (!product) continue;
+      const t = effectiveTemplate(get(), product.id);
+      d.fresh.productId = product.id;
+      d.fresh.photos = d.fresh.photos.map((p) => {
+        if (p.missing) return p;
+        const dpi = printDpi(p.crop, p.buyerPlacement.scale, photoFrame(t, p.crop));
+        return { ...p, dpi, flagged: dpi < DPI_FLOOR };
+      });
+    }
     set((s) => ({
       orders: s.orders.map((o) => toApply.find((d) => orderKey(d.fresh) === orderKey(o))?.fresh ?? o),
       duplicateImports: s.duplicateImports.filter((d) => !fileNames.includes(d.fileName)),
@@ -272,7 +342,7 @@ export const useStore = create<AppState>((set, get) => ({
       cropBlob: res.blob,
       cropW: res.w,
       cropH: res.h,
-      dpi: printDpi(photo.crop.w, eff.scale),
+      dpi: printDpi(photo.crop, eff.scale, photoFrame(orderTemplate(order), photo.crop)),
       approved: false,
     });
   },
@@ -317,6 +387,33 @@ export const useStore = create<AppState>((set, get) => ({
       activity: order ? s.activity.filter((ev) => ev.orderId !== order.id) : s.activity,
       selection: new Set([...s.selection].filter((sel) => sel !== key)),
     }));
+  },
+
+  assignProduct(keys, productId, remember) {
+    const product = getProduct(productId);
+    if (!product) return;
+    const chosen = new Set(keys);
+    // "did the template change" is judged against the registry as it was before learning
+    const before = new Map(get().orders.map((o) => [orderKey(o), resolveProduct(o)?.id]));
+    if (remember) {
+      const learned = { ...getLearnedAsins() };
+      const asins = new Set<string>();
+      for (const o of get().orders) {
+        if (!chosen.has(orderKey(o)) || !o.asin || findByAsin(o.asin)) continue;
+        learned[o.asin] = { productId, packSize: o.photos.length };
+        asins.add(o.asin);
+      }
+      // siblings: other unassigned orders with a just-remembered ASIN follow it
+      for (const o of get().orders) {
+        if (asins.has(o.asin) && !before.get(orderKey(o))) chosen.add(orderKey(o));
+      }
+      try {
+        saveLearnedAsins(learned);
+      } catch {
+        // browser storage is full: the ASIN is not remembered, but these orders are still assigned
+      }
+    }
+    applyAssignment(chosen, product, before);
   },
 
   buildBatch(keys) {
@@ -367,8 +464,30 @@ export const useStore = create<AppState>((set, get) => ({
 
   removeProduct(productId) {
     const next = get().customProducts.filter((x) => x.id !== productId);
+    // orders of the deleted product become unassigned (or fall back to their ASIN's product);
+    // either way what they were approved against is gone, so unprinted ones are reviewed again
+    const affected = new Set(
+      get().orders.filter((o) => resolveProduct(o)?.id === productId).map(orderKey)
+    );
     saveCustomProducts(next);
-    set({ customProducts: next });
+    saveLearnedAsins(
+      Object.fromEntries(Object.entries(getLearnedAsins()).filter(([, l]) => l.productId !== productId))
+    );
+    set((s) => ({
+      customProducts: next,
+      orders: s.orders.map((o) => {
+        if (!affected.has(orderKey(o))) return o;
+        const finished = o.status === 'printed' || o.status === 'done';
+        const cleared: Order = {
+          ...o,
+          productId: undefined,
+          photos: finished ? o.photos : o.photos.map((p) => (p.missing ? p : { ...p, approved: false })),
+          status: finished || o.status === 'held' ? o.status : 'needs_review',
+        };
+        void saveOrder(cleared);
+        return cleared;
+      }),
+    }));
     get().resetTemplateOverride(productId);
   },
 }));

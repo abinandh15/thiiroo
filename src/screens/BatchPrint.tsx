@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { allApproved, effectiveTemplate, orderKey, sheetCount, useStore } from '../store';
-import { instantPhotoPrints } from '../products';
+import { allApproved, orderKey, sheetCount, useStore } from '../store';
+import { productPath } from '../products';
+import { useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
+import { slotsPerSheet } from '../lib/geometry';
 import { blankCount, buildSheets } from '../lib/sheets';
 import { Sheet } from '../components/Sheet';
 import { ThemeToggle } from '../components/common';
@@ -9,21 +11,24 @@ import { printSheets } from '../lib/printJob';
 
 export function BatchPrint() {
   const navigate = useNavigate();
-  const orders = useStore((s) => s.orders);
+  const product = useRouteProduct();
+  const orders = useProductOrders(product);
   const batchKeys = useStore((s) => s.batchKeys);
   const combineMode = useStore((s) => s.combineMode);
   const setCombineMode = useStore((s) => s.setCombineMode);
   const guides = useStore((s) => s.guides);
-  const template = useStore((s) => effectiveTemplate(s, instantPhotoPrints.id));
+  const template = useProductTemplate(product);
+  const slots = slotsPerSheet(template);
+  const sheetMm = `${template.sheet.w} × ${template.sheet.h} mm`;
+  const isA4Landscape = template.sheet.w === 297 && template.sheet.h === 210;
 
   const [alsoDone, setAlsoDone] = useState(false);
   const [markPrintedAfter, setMarkPrintedAfter] = useState(true);
 
   const batchOrders = useMemo(() => {
-    const chosen = batchKeys.length
-      ? orders.filter((o) => batchKeys.includes(orderKey(o)))
-      : orders.filter((o) => o.status === 'ready');
-    return chosen;
+    // batchKeys is global: keep only this product's orders; none left = the default ready batch
+    const picked = orders.filter((o) => batchKeys.includes(orderKey(o)));
+    return picked.length ? picked : orders.filter((o) => o.status === 'ready');
   }, [orders, batchKeys]);
 
   const notReady = batchOrders.filter((o) => !allApproved(o) && o.status !== 'ready');
@@ -31,7 +36,7 @@ export function BatchPrint() {
     () => batchOrders.filter((o) => allApproved(o) || o.status === 'ready'),
     [batchOrders]
   );
-  const sheets = useMemo(() => buildSheets(printable, combineMode), [printable, combineMode]);
+  const sheets = useMemo(() => buildSheets(printable, combineMode, slots), [printable, combineMode, slots]);
 
   // drag-to-reorder pages: a permutation over `sheets`, reset whenever the composition changes
   const [pageOrder, setPageOrder] = useState<number[]>([]);
@@ -53,19 +58,19 @@ export function BatchPrint() {
     });
   };
 
-  const strictSheets = useMemo(() => buildSheets(printable, 'strict'), [printable]);
+  const strictSheets = useMemo(() => buildSheets(printable, 'strict', slots), [printable, slots]);
   const partials = strictSheets.filter((s) => blankCount(s) > 0).length;
-  const saved = strictSheets.length - buildSheets(printable, 'combine').length;
+  const saved = strictSheets.length - buildSheets(printable, 'combine', slots).length;
   const totalPhotos = printable.reduce((n, o) => n + o.photos.filter((p) => !p.missing).length, 0);
 
   const doPrint = () => {
-    printSheets(orderedSheets, printable.map(orderKey));
+    printSheets(orderedSheets, printable.map(orderKey), template);
   };
 
   return (
     <div className="main">
       <header className="header">
-        <a onClick={() => navigate('/p/instant-photo-prints/queue')} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
+        <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
         <span className="title">Batch print</span>
         <span className="crumb mono">
           {printable.length} orders · {totalPhotos} photos · {sheets.length} sheets
@@ -90,7 +95,7 @@ export function BatchPrint() {
                 ready order lands here automatically.
               </div>
               <div className="actions">
-                <button className="btn primary" onClick={() => navigate('/p/instant-photo-prints/queue')}>
+                <button className="btn primary" onClick={() => navigate(productPath(product.id, 'queue'))}>
                   Open queue
                 </button>
               </div>
@@ -129,9 +134,9 @@ export function BatchPrint() {
                     <div className="cap">
                       Page {i + 1} · <span>{s.orderIds.join(' + ')}</span> ·{' '}
                       {blankCount(s) > 0 ? (
-                        <span className="part">{6 - blankCount(s)}/6</span>
+                        <span className="part">{slots - blankCount(s)}/{slots}</span>
                       ) : (
-                        '6/6'
+                        `${slots}/${slots}`
                       )}
                       {s.copyNote ? ` · ${s.copyNote}` : ''}
                     </div>
@@ -191,7 +196,7 @@ export function BatchPrint() {
 
           <div>
             <div className="card-title" style={{ marginBottom: 6 }}>Before you print</div>
-            <div className="check-row"><span className="m ok">✓</span><span>Paper: A4 landscape</span></div>
+            <div className="check-row"><span className="m ok">✓</span><span>Paper: {isA4Landscape ? 'A4 landscape' : sheetMm}</span></div>
             <div className="check-row"><span className="m ok">✓</span><span>Margins: None · Scale: 100%</span></div>
             <div className="check-row"><span className="m ok">✓</span><span>Background graphics: ON</span></div>
             <div className="check-row"><span className="m warn">▲</span><span>Headers &amp; footers: OFF</span></div>

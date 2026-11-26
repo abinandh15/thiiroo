@@ -83,13 +83,59 @@ export function newProductId(name: string): string {
   return id;
 }
 
-/** Resolve an order's ASIN (any pack size) to its product and variant. */
+const ASIN_LS_KEY = 'thiiroo-learned-asins';
+
+/** An ASIN the user tied to a product while assigning an order by hand ("remember this ASIN"). */
+export interface LearnedAsin {
+  productId: string;
+  packSize: number;
+}
+
+function loadLearnedAsins(): Record<string, LearnedAsin> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ASIN_LS_KEY) ?? '{}');
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+let learnedAsins: Record<string, LearnedAsin> = loadLearnedAsins();
+
+export function getLearnedAsins(): Record<string, LearnedAsin> {
+  return learnedAsins;
+}
+
+export function saveLearnedAsins(next: Record<string, LearnedAsin>): void {
+  localStorage.setItem(ASIN_LS_KEY, JSON.stringify(next));
+  learnedAsins = next;
+}
+
+/** Every ASIN that routes to a product: the listed variants, then the learned ones. */
+export function productAsins(product: Product): ProductVariant[] {
+  const learned = Object.entries(learnedAsins)
+    .filter(([asin, l]) => l.productId === product.id && !product.variants.some((v) => v.asin === asin))
+    .map(([asin, l]) => ({ asin, packSize: l.packSize }));
+  return [...product.variants, ...learned];
+}
+
+/** Resolve an order's ASIN (any pack size) to its product and variant.
+ *  A product's own variant list wins over a learned ASIN. */
 export function findByAsin(asin: string): { product: Product; variant: ProductVariant } | undefined {
+  if (!asin) return undefined;
   for (const product of listProducts()) {
     const variant = product.variants.find((v) => v.asin === asin);
     if (variant) return { product, variant };
   }
-  return undefined;
+  const learned = learnedAsins[asin];
+  const product = learned && getProduct(learned.productId);
+  return product ? { product, variant: { asin, packSize: learned.packSize } } : undefined;
+}
+
+/** The product an order prints as: a template picked by hand wins, otherwise the ASIN decides.
+ *  undefined = unassigned (unknown ASIN and nothing picked, or the picked product was deleted). */
+export function resolveProduct(order: { asin: string; productId?: string }): Product | undefined {
+  return (order.productId ? getProduct(order.productId) : undefined) ?? findByAsin(order.asin)?.product;
 }
 
 /** Pack size an order's ASIN was sold as; undefined when the ASIN isn't in the registry.
@@ -99,11 +145,17 @@ export function packSizeOf(order: { asin: string }): number | undefined {
 }
 
 /** Warning line when the zip's photo count disagrees with the pack size bought,
- *  or the ASIN is unknown. undefined when everything lines up. */
-export function packWarning(order: { asin: string; photos: { length: number } }): string | undefined {
+ *  or the ASIN is unknown and no template was picked. undefined when everything lines up. */
+export function packWarning(order: {
+  asin: string;
+  productId?: string;
+  photos: { length: number };
+}): string | undefined {
   if (!order.asin) return undefined;
   const pack = packSizeOf(order);
-  if (pack === undefined) return `ASIN ${order.asin} is not in the product registry`;
+  if (pack === undefined) {
+    return resolveProduct(order) ? undefined : `ASIN ${order.asin} is not in the product registry`;
+  }
   const n = order.photos.length;
   if (n !== pack) return `Pack of ${pack} ordered but zip has ${n} photo${n === 1 ? '' : 's'}`;
   return undefined;

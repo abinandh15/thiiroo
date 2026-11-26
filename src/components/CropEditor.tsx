@@ -12,7 +12,9 @@ export const FRAME_H = 331;
  *  buyer's own framing. Shared by Review and Crop export. */
 export function useReframe(
   photo: Photo | undefined,
-  onCommit: (photo: Photo, placement: Placement | undefined) => void
+  onCommit: (photo: Photo, placement: Placement | undefined) => void,
+  /** printed photo frame in mm the DPI is judged against; default = Instant Photo Prints */
+  frame?: { w: number; h: number }
 ) {
   // pending (uncommitted) placement while dragging/zooming
   const [pend, setPend] = useState<Placement | null>(null);
@@ -145,7 +147,7 @@ export function useReframe(
     dragRef.current = null;
   };
 
-  const dpi = photo && eff ? printDpi(photo.crop.w, eff.scale) : 0;
+  const dpi = photo && eff ? printDpi(photo.crop, eff.scale, frame) : 0;
 
   return {
     eff, dpi, zoomTo, nudge, rotate90, rotateBy, resetFraming,

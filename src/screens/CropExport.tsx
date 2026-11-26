@@ -66,7 +66,7 @@ export function CropExport() {
         ...o,
         photos: o.photos.map((p) =>
           p.id === photo.id
-            ? { ...p, override: placement, cropBlob: res.blob, cropW: res.w, cropH: res.h, dpi: printDpi(p.crop.w, eff.scale) }
+            ? { ...p, override: placement, cropBlob: res.blob, cropW: res.w, cropH: res.h, dpi: printDpi(p.crop, eff.scale) }
             : p
         ),
       }

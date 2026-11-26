@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { allApproved, orderKey, sheetsPerCopy, useStore } from '../store';
-import { packSizeOf, packWarning } from '../products';
+import { packSizeOf, packWarning, productPath, resolveProduct } from '../products';
+import type { Product } from '../products';
+import type { TemplateDescriptor } from '../lib/geometry';
+import { aspectWarning, useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
 import type { Order, Photo, Placement } from '../lib/types';
 import { blobUrl, truncateMiddle } from '../lib/format';
-import { DPI_FLOOR, PHOTO, SLOTS_PER_SHEET } from '../lib/geometry';
+import { DPI_FLOOR, photoFrame, slotsPerSheet } from '../lib/geometry';
 import { StatusPill, ThemeToggle } from '../components/common';
 import { CropControls, CropFrame, FRAME_H, FRAME_W, reframeKey, useReframe } from '../components/CropEditor';
 
+const fmtMm = (v: number) => String(Math.round(v * 10) / 10);
 const CANVAS_PX = 330; // buyer 400x400 canvas preview size
 
 export function Review() {
   const { key: rawKey } = useParams();
-  const orders = useStore((s) => s.orders);
+  const product = useRouteProduct();
+  const allOrders = useStore((s) => s.orders);
+  const orders = useProductOrders(product);
+  const template = useProductTemplate(product);
   const navigate = useNavigate();
 
   const reviewables = useMemo(
@@ -22,11 +29,22 @@ export function Review() {
   const key = rawKey ? decodeURIComponent(rawKey) : reviewables[0] ? orderKey(reviewables[0]) : undefined;
   const order = orders.find((o) => orderKey(o) === key);
 
+  // the URL names an order that belongs to another template (or to none): follow it there
+  const elsewhere = rawKey ? allOrders.find((o) => orderKey(o) === key) : undefined;
+  if (!order && elsewhere) {
+    const home = resolveProduct(elsewhere);
+    return home ? (
+      <Navigate replace to={productPath(home.id, `review/${encodeURIComponent(orderKey(elsewhere))}`)} />
+    ) : (
+      <Navigate replace to="/unassigned" />
+    );
+  }
+
   if (!order) {
     return (
       <div className="main">
         <header className="header">
-          <a onClick={() => navigate('/p/instant-photo-prints/queue')} style={{ cursor: 'pointer' }}>← Queue</a>
+          <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer' }}>← Queue</a>
           <span className="title">Review</span>
           <span className="spacer" />
           <ThemeToggle />
@@ -40,7 +58,9 @@ export function Review() {
       </div>
     );
   }
-  return <ReviewInner key={orderKey(order)} order={order} reviewables={reviewables} />;
+  return (
+    <ReviewInner key={orderKey(order)} order={order} reviewables={reviewables} product={product} template={template} />
+  );
 }
 
 function reviewReason(o: Order): { text: string; ok: boolean } {
@@ -51,8 +71,21 @@ function reviewReason(o: Order): { text: string; ok: boolean } {
   return { text: `Not yet reviewed · ${o.photos.length} photos`, ok: true };
 }
 
-function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[] }) {
+function ReviewInner({
+  order,
+  reviewables,
+  product,
+  template,
+}: {
+  order: Order;
+  reviewables: Order[];
+  product: Product;
+  template: TemplateDescriptor;
+}) {
   const k = orderKey(order);
+  const frame = useMemo(() => photoFrame(template), [template]);
+  const slots = slotsPerSheet(template);
+  const aspectWarn = aspectWarning(order, template);
   const navigate = useNavigate();
   const updatePhoto = useStore((s) => s.updatePhoto);
   const approveAll = useStore((s) => s.approveAll);
@@ -66,7 +99,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
     (p: Photo, placement: Placement | undefined) => void reframePhoto(k, p.id, placement),
     [k, reframePhoto]
   );
-  const rf = useReframe(photo, onReframe);
+  const rf = useReframe(photo, onReframe, frame);
   const { eff, dpi } = rf;
 
   const nextReviewable = reviewables.find((o) => orderKey(o) !== k);
@@ -81,7 +114,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
       else if (e.key === 'a' || e.key === 'A') {
         if (e.shiftKey) approveAll(k);
         else if (photo && !photo.missing) updatePhoto(k, photo.id, { approved: true, flagged: false });
-      } else if (e.key === 'Escape') navigate('/p/instant-photo-prints/queue');
+      } else if (e.key === 'Escape') navigate(productPath(product.id, 'queue'));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -93,7 +126,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
   return (
     <div className="main">
       <header className="header">
-        <a onClick={() => navigate('/p/instant-photo-prints/queue')} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
+        <a onClick={() => navigate(productPath(product.id, 'queue'))} style={{ cursor: 'pointer', fontSize: 12 }}>← Queue</a>
         <span className="title mono">{order.id}</span>
         <StatusPill status={order.status} />
         <span className="crumb">Photo {idx + 1} of {order.photos.length}</span>
@@ -110,8 +143,8 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
           className="btn primary"
           onClick={() => {
             approveAll(k);
-            if (nextReviewable) navigate(`/p/instant-photo-prints/review/${encodeURIComponent(orderKey(nextReviewable))}`);
-            else navigate('/p/instant-photo-prints/queue');
+            if (nextReviewable) navigate(productPath(product.id, `review/${encodeURIComponent(orderKey(nextReviewable))}`));
+            else navigate(productPath(product.id, 'queue'));
           }}
         >
           Approve all &amp; continue →
@@ -127,7 +160,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
               <div
                 key={orderKey(o)}
                 className={`item${orderKey(o) === k ? ' active' : ''}`}
-                onClick={() => navigate(`/p/instant-photo-prints/review/${encodeURIComponent(orderKey(o))}`)}
+                onClick={() => navigate(productPath(product.id, `review/${encodeURIComponent(orderKey(o))}`))}
               >
                 <div className="id">{o.id}</div>
                 <div className={`why${reason.ok ? ' ok' : ''}`}>{reason.text}</div>
@@ -180,7 +213,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
 
             {/* our crop */}
             <div>
-              <div className="stage-caption top accent">Our crop · 1095×1300 px · JPEG q0.95</div>
+              <div className="stage-caption top accent">Our crop · {photo ? `${photo.cropW}×${photo.cropH}` : '—'} px · JPEG q0.95</div>
               {photo?.missing ? (
                 <div
                   className="crop-frame"
@@ -215,7 +248,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
                 )}
               </div>
             ))}
-            {Array.from({ length: Math.max(0, SLOTS_PER_SHEET - order.photos.length) }, (_, i) => (
+            {Array.from({ length: Math.max(0, slots - order.photos.length) }, (_, i) => (
               <div key={`e${i}`} className="fthumb empty">empty<br />slot</div>
             ))}
             <span className="spacer" />
@@ -260,7 +293,7 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
           {photo && !photo.missing && dpi < DPI_FLOOR && (
             <div className="warn-card">
               <div className="t">! Low resolution</div>
-              {dpi} DPI at {PHOTO.w} × {PHOTO.h} mm — under the {DPI_FLOOR} DPI floor. Prints usable but soft.
+              {dpi} DPI at {fmtMm(frame.w)} × {fmtMm(frame.h)} mm — under the {DPI_FLOOR} DPI floor. Prints usable but soft.
               Zooming out increases DPI.
               <div className="actions">
                 <button className="btn sm" onClick={() => updatePhoto(k, photo.id, { approved: true, flagged: false })}>
@@ -270,13 +303,20 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
                   className="btn sm"
                   onClick={() => {
                     void navigator.clipboard.writeText(
-                      `Hi! Thanks for your order ${order.id}. The photo "${photo.buyerFilename}" is lower resolution than ideal for a sharp ${'3×4'}-inch print (${dpi} DPI). It will still print, but may look slightly soft. If you have a larger original, reply with it within 24h and we'll use that instead.`
+                      `Hi! Thanks for your order ${order.id}. The photo "${photo.buyerFilename}" is lower resolution than ideal for a sharp ${product.sizeLabel ? product.sizeLabel + ' ' : ''}print (${dpi} DPI). It will still print, but may look slightly soft. If you have a larger original, reply with it within 24h and we'll use that instead.`
                     );
                   }}
                 >
                   Copy buyer message
                 </button>
               </div>
+            </div>
+          )}
+
+          {photo && !photo.missing && aspectWarn && (
+            <div className="warn-card">
+              <div className="t">! Crop shape</div>
+              {aspectWarn}
             </div>
           )}
 
@@ -294,14 +334,14 @@ function ReviewInner({ order, reviewables }: { order: Order; reviewables: Order[
             <div className="card-title" style={{ marginBottom: 8 }}>Order</div>
             <div className="kv"><span className="k">item</span><span className="v">{order.itemId}</span></div>
             <div className="kv"><span className="k">qty</span><span className="v">{order.qty}</span></div>
-            <div className="kv"><span className="k">pack</span><span className="v">{packSizeOf(order) ?? 'unknown ASIN'}</span></div>
-            <div className="kv"><span className="k">photos</span><span className="v">{order.photos.length} of {packSizeOf(order) ?? SLOTS_PER_SHEET}</span></div>
+            <div className="kv"><span className="k">pack</span><span className="v">{packSizeOf(order) ?? (order.productId ? 'picked by hand' : 'unknown ASIN')}</span></div>
+            <div className="kv"><span className="k">photos</span><span className="v">{order.photos.length} of {packSizeOf(order) ?? slots}</span></div>
             {packWarning(order) && <div className="warnline">{packWarning(order)}</div>}
             <div className="kv">
               <span className="k">sheets</span>
               <span className="v">
                 {sheetsPerCopy(order)}
-                {order.photos.length < SLOTS_PER_SHEET ? ` (${SLOTS_PER_SHEET - order.photos.length} blanks)` : ''}
+                {order.photos.length < slots ? ` (${slots - order.photos.length} blanks)` : ''}
               </span>
             </div>
             <div className="kv"><span className="k">zip</span><span className="v">{truncateMiddle(order.zipName, 24)}</span></div>

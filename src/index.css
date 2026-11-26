@@ -644,3 +644,14 @@ a.side-ghost.active, a.side-ghost:hover { opacity: 1; }
 .cropx-card.editing { border-color: var(--accent); outline: 1.5px solid var(--accent); outline-offset: -1.5px; }
 .cropx-editor { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .cropx-editor .head { display: flex; align-items: center; gap: 10px; align-self: stretch; margin-bottom: 8px; font-size: 10.5px; }
+
+/* ============ unassigned orders + queue "Move to" ============ */
+.urow {
+  display: grid; grid-template-columns: 30px 156px 1fr auto; gap: 8px;
+  align-items: center; padding: 11px 22px; border-bottom: 1px solid var(--row-sep);
+  transition: background 120ms ease; cursor: default;
+}
+.urow:hover { background: var(--bg-subtle); }
+.urow.selected { background: var(--accent-tint); }
+.selbar .selbar-move { color: #fff; background: transparent; border-color: rgba(255, 255, 255, 0.35); }
+.selbar .selbar-move option { color: #17181a; }

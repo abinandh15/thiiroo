@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { sheetCount, useStore } from '../store';
+import { listProducts, productPath, resolveProduct } from '../products';
 import { headerStamp, timeHM } from '../lib/format';
 import { ImportButton, StatusPill, ThemeToggle } from '../components/common';
 import { blobUrl } from '../lib/format';
@@ -8,6 +9,11 @@ export function Overview() {
   const orders = useStore((s) => s.orders);
   const activity = useStore((s) => s.activity);
   const navigate = useNavigate();
+  const customProducts = useStore((s) => s.customProducts);
+  const products = listProducts(); // re-evaluated when customProducts changes
+  void customProducts;
+  const unassigned = orders.filter((o) => !resolveProduct(o)).length;
+  const firstQueue = productPath(products[0].id, 'queue');
 
   const inQueue = orders.filter((o) => o.status !== 'printed' && o.status !== 'done');
   const needsReview = orders.filter((o) => o.status === 'needs_review');
@@ -22,7 +28,6 @@ export function Overview() {
   const printedPrints = printedToday.reduce((n, o) => n + o.photos.filter((p) => !p.missing).length * o.qty, 0);
   const printedSheets = printedToday.reduce((n, o) => n + sheetCount(o), 0);
 
-  const firstProduct = orders[0];
 
   return (
     <div className="main">
@@ -34,6 +39,15 @@ export function Overview() {
         <ImportButton />
       </header>
       <div className="content">
+        {unassigned > 0 && (
+          <div className="banner-warn" style={{ margin: 0 }}>
+            <div className="t">
+              {unassigned} order{unassigned > 1 ? 's' : ''} with an unknown ASIN {unassigned > 1 ? 'are' : 'is'} waiting
+              for a template —{' '}
+              <Link to="/unassigned">Assign template →</Link>
+            </div>
+          </div>
+        )}
         <div className="stats">
           <div className="card stat">
             <div className="section-label">In queue</div>
@@ -68,7 +82,7 @@ export function Overview() {
             <div className="card-pad" style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
               <span className="card-title">Recent activity</span>
               <span style={{ flex: 1 }} />
-              <Link to="/p/instant-photo-prints/queue" style={{ fontSize: 11.5 }}>
+              <Link to={firstQueue} style={{ fontSize: 11.5 }}>
                 Open queue →
               </Link>
             </div>
@@ -109,25 +123,33 @@ export function Overview() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div className="card card-pad">
               <div className="card-title" style={{ marginBottom: 10 }}>Products</div>
-              <div
-                className="card card-pad"
-                style={{ display: 'flex', gap: 12, alignItems: 'center', cursor: 'pointer' }}
-                onClick={() => navigate('/p/instant-photo-prints/queue')}
-              >
-                <div style={{ width: 34, height: 44, background: '#fff', border: '1px solid var(--border-strong)', borderRadius: 2, padding: '3px 3px 9px' }}>
-                  {firstProduct?.photos[0] && blobUrl(firstProduct.photos[0].cropBlob) ? (
-                    <img src={blobUrl(firstProduct.photos[0].cropBlob)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                  ) : (
-                    <div style={{ width: '100%', height: '100%', background: 'var(--bg-stage)' }} />
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 12.5 }}>Instant Photo Prints</div>
-                  <div className="muted" style={{ fontSize: 11 }}>
-                    4×3 in · 6-up A4 · {inQueue.length} open order{inQueue.length !== 1 ? 's' : ''}
+              {products.map((p) => {
+                const mine = orders.filter((o) => resolveProduct(o)?.id === p.id);
+                const open = mine.filter((o) => o.status !== 'printed' && o.status !== 'done').length;
+                const thumb = mine.find((o) => o.photos[0] && blobUrl(o.photos[0].cropBlob))?.photos[0];
+                return (
+                  <div
+                    key={p.id}
+                    className="card card-pad"
+                    style={{ display: 'flex', gap: 12, alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}
+                    onClick={() => navigate(productPath(p.id, 'queue'))}
+                  >
+                    <div style={{ width: 34, height: 44, background: '#fff', border: '1px solid var(--border-strong)', borderRadius: 2, padding: '3px 3px 9px', flexShrink: 0 }}>
+                      {thumb ? (
+                        <img src={blobUrl(thumb.cropBlob)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', background: 'var(--bg-stage)' }} />
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 12.5 }}>{p.name}</div>
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        {p.sizeLabel ? `${p.sizeLabel} · ` : ''}{open} open order{open !== 1 ? 's' : ''}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })}
               <button className="btn" style={{ width: '100%', marginTop: 10, borderStyle: 'dashed', color: 'var(--ink-faint)' }}>
                 + Add product workflow
               </button>

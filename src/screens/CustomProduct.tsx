@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ThemeToggle } from '../components/common';
 import { Sheet } from '../components/Sheet';
 import { slotsPerSheet } from '../lib/geometry';
+import { productAsins } from '../products';
 import { printSheets } from '../lib/printJob';
 import type { SheetModel } from '../lib/sheets';
 import { useStore } from '../store';
@@ -25,6 +26,7 @@ export function CustomProduct({ productId }: { productId: string }) {
   }, []);
   if (!product) return null;
 
+  const asins = productAsins(product);
   const t = product.template;
   const layout = t.custom!;
   const slots = slotsPerSheet(t);
@@ -39,6 +41,7 @@ export function CustomProduct({ productId }: { productId: string }) {
         <span className="crumb">/ Template</span>
         <span className="spacer" />
         <ThemeToggle />
+        <button className="btn" onClick={() => navigate(`/p/${product.id}/queue`)}>Open queue</button>
         <button
           className="btn"
           onClick={() => printSheets([emptyModel], [], t)}
@@ -71,14 +74,14 @@ export function CustomProduct({ productId }: { productId: string }) {
           <div className="kv"><span className="k">source</span><span className="v">imported SVG</span></div>
 
           <div className="section-label" style={{ padding: 0, margin: '8px 0 2px' }}>ASINs</div>
-          {product.variants.length ? (
-            product.variants.map((v) => (
+          {asins.length ? (
+            asins.map((v) => (
               <div className="kv" key={v.asin}>
                 <span className="k">{v.asin}</span><span className="v">pack of {v.packSize}</span>
               </div>
             ))
           ) : (
-            <div className="muted" style={{ fontSize: 11 }}>None yet. Orders cannot be matched to this product without one.</div>
+            <div className="muted" style={{ fontSize: 11 }}>None yet. Orders reach this product when you assign them by hand, or add an ASIN.</div>
           )}
 
           {layout.artwork && (
@@ -93,12 +96,6 @@ export function CustomProduct({ productId }: { productId: string }) {
               <span>Print the SVG artwork under the photos</span>
             </label>
           )}
-
-          <div className="warn-card" style={{ marginTop: 10 }}>
-            <div className="t">! Template only</div>
-            Order import, review and printing still run on Instant Photo Prints. This product's layout is saved and
-            ready, but its orders are not routed here yet.
-          </div>
 
           <button
             className="btn sm"

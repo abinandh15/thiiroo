@@ -189,8 +189,20 @@ template (`1.pdf` in Downloads) dimensionally.
   Scripts, foreignObject and on* attributes are stripped before the SVG is mounted or stored.
   Artwork over ~1.5 MB is not stored (layout only). In `Sheet.tsx` the custom cut outline class is
   `.cutbox` — `.cutline` belongs to the red cut-guide ticks.
-- NOT done: orders are not routed to custom products. Queue/Review/Print, `sheets.ts`
-  (`SLOTS_PER_SHEET`) and `printDpi` are still hardwired to Instant Photo Prints.
+- Order routing (done 2026-11-26, uncommitted at time of writing; checked in the preview with a
+  synthetic 4-frame product, never printed on paper): every product has its own
+  Queue/Review/Print under `/p/:productId/…` (`useRouteProduct()` in `src/products/useRouteProduct.ts`).
+  `resolveProduct(order)` = `order.productId` (pinned at import, or picked by hand) else the ASIN.
+  Unknown ASIN → `/unassigned`, where the user picks a product ("remember" stores the ASIN in
+  localStorage `thiiroo-learned-asins`) or starts Add product with the ASIN prefilled. Queue selbar
+  "Move to…" re-assigns. `assignProduct` recomputes DPI against the new frame and clears approvals
+  (printed/done orders keep their status). Deleting a product un-assigns its orders.
+  `buildSheets(orders, mode, slots)` — slot count is required; one print job = one template.
+  `printDpi(crop, scale, frame)` models object-fit: cover (identical numbers for the built-in).
+- Known gaps after routing: the Review crop frame is still drawn 219:260 whatever the order's crop
+  window; editing a template does not re-judge DPI/approvals of orders already imported;
+  `order.warnings` (import-time strings) are not rewritten on re-assignment; `Template.tsx` (the
+  live editor) is built-in only.
 
 ## Phase 3 — SP-API (in progress, started 2026-07-31)
 

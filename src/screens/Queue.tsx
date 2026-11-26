@@ -4,12 +4,19 @@ import { orderKey, sheetCount, useStore } from '../store';
 import type { Order } from '../lib/types';
 import { blobUrl, timeHM } from '../lib/format';
 import { ImportButton, StatusPill, ThemeToggle } from '../components/common';
-import { packSizeOf, packWarning } from '../products';
+import { listProducts, packSizeOf, packWarning, productPath, resolveProduct } from '../products';
+import { aspectWarning, useProductOrders, useProductTemplate, useRouteProduct } from '../products/useRouteProduct';
 
 type Filter = 'all' | 'review' | 'ready' | 'printed';
 
 export function Queue() {
-  const orders = useStore((s) => s.orders);
+  const product = useRouteProduct();
+  const allOrders = useStore((s) => s.orders);
+  const orders = useProductOrders(product);
+  const template = useProductTemplate(product);
+  const otherProducts = listProducts().filter((p) => p.id !== product.id);
+  const unassignedCount = allOrders.filter((o) => !resolveProduct(o)).length;
+  const assignProduct = useStore((s) => s.assignProduct);
   const importQueue = useStore((s) => s.importQueue);
   const failedImports = useStore((s) => s.failedImports);
   const retryFailed = useStore((s) => s.retryFailed);
@@ -58,6 +65,7 @@ export function Queue() {
   }, [orders, filter, query]);
 
   const selectedOrders = orders.filter((o) => selection.has(orderKey(o)));
+  const selectedCount = selectedOrders.length;
   const selPhotos = selectedOrders.reduce((n, o) => n + o.photos.length, 0);
   const selSheets = selectedOrders.reduce((n, o) => n + sheetCount(o), 0);
 
@@ -90,9 +98,9 @@ export function Queue() {
 
   function openOrder(o: Order) {
     if (o.status === 'needs_review' || o.status === 'held') {
-      navigate(`/p/instant-photo-prints/review/${encodeURIComponent(orderKey(o))}`);
+      navigate(productPath(product.id, `review/${encodeURIComponent(orderKey(o))}`));
     } else {
-      navigate(`/p/instant-photo-prints/print/${encodeURIComponent(orderKey(o))}`);
+      navigate(productPath(product.id, `print/${encodeURIComponent(orderKey(o))}`));
     }
   }
 
@@ -118,7 +126,7 @@ export function Queue() {
       }}
     >
       <header className="header">
-        <span className="title">Instant Photo Prints</span>
+        <span className="title">{product.name}</span>
         <span className="crumb">/ Queue</span>
         <span className="spacer" />
         <div className="search">
@@ -126,7 +134,7 @@ export function Queue() {
           <span className="key">/</span>
         </div>
         <ThemeToggle />
-        <button className="btn" onClick={() => navigate('/p/instant-photo-prints/review')}>Review queue →</button>
+        <button className="btn" onClick={() => navigate(productPath(product.id, 'review'))}>Review queue →</button>
         <ImportButton />
       </header>
 
@@ -152,6 +160,17 @@ export function Queue() {
           <button className={view === 'cards' ? 'on' : ''} onClick={() => setViewPersist('cards')}>Cards</button>
         </div>
       </div>
+
+      {unassignedCount > 0 && (
+        <div className="banner-warn">
+          <div className="t">
+            {unassignedCount} order{unassignedCount > 1 ? 's' : ''} with an unknown ASIN {unassignedCount > 1 ? 'are' : 'is'} waiting for a template
+          </div>
+          <div className="actions">
+            <button className="btn sm" onClick={() => navigate('/unassigned')}>Assign template →</button>
+          </div>
+        </div>
+      )}
 
       {failedImports.length > 0 && (
         <div className="banner-error">
@@ -267,6 +286,8 @@ export function Queue() {
                         Item {o.itemId} · {packSizeOf(o) ? `pack of ${packSizeOf(o)} · ` : ''}{o.photos.length} JPGs · {timeHM(o.importedAt)}
                       </div>
                       {packWarning(o) && <div className="warnline">{packWarning(o)}</div>}
+                    {aspectWarning(o, template) && <div className="warnline">{aspectWarning(o, template)}</div>}
+                      {aspectWarning(o, template) && <div className="warnline">{aspectWarning(o, template)}</div>}
                       {lowDpi > 0 && <div className="warnline">{lowDpi} photo{lowDpi > 1 ? 's' : ''} below 150 DPI</div>}
                       {missing > 0 && <div className="warnline">{missing} image{missing > 1 ? 's' : ''} missing from zip</div>}
                       <div className="qcard-foot">
@@ -337,9 +358,9 @@ export function Queue() {
             })}
           </div>
 
-          {selection.size > 0 && (
+          {selectedCount > 0 && (
             <div className="selbar">
-              <strong>{selection.size} order{selection.size > 1 ? 's' : ''} selected</strong>
+              <strong>{selectedCount} order{selectedCount > 1 ? 's' : ''} selected</strong>
               <span className="meta">
                 {selPhotos} photos · {selSheets} sheet{selSheets !== 1 ? 's' : ''} ·{' '}
                 {combineMode === 'strict' ? '1 order per sheet' : 'combined part sheets'}
@@ -348,7 +369,7 @@ export function Queue() {
                 className="btn sm"
                 onClick={() => {
                   const first = selectedOrders.find((o) => o.status === 'needs_review' || o.status === 'held');
-                  if (first) navigate(`/p/instant-photo-prints/review/${encodeURIComponent(orderKey(first))}`);
+                  if (first) navigate(productPath(product.id, `review/${encodeURIComponent(orderKey(first))}`));
                 }}
               >
                 Review selected
@@ -362,7 +383,7 @@ export function Queue() {
                       (o) => o.status === 'ready' || o.status === 'printed' || o.status === 'done'
                     );
                     for (const o of past) reopenReview(orderKey(o));
-                    navigate(`/p/instant-photo-prints/review/${encodeURIComponent(orderKey(past[0]))}`);
+                    navigate(productPath(product.id, `review/${encodeURIComponent(orderKey(past[0]))}`));
                   }}
                 >
                   Reopen review
@@ -374,6 +395,24 @@ export function Queue() {
               >
                 Mark printed
               </button>
+              {otherProducts.length > 0 && (
+                <select
+                  className="btn sm selbar-move"
+                  value=""
+                  title="Print the selected orders with another template"
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (!id) return;
+                    assignProduct(selectedOrders.map(orderKey), id, false);
+                    setSelection(new Set());
+                  }}
+                >
+                  <option value="">Move to…</option>
+                  {otherProducts.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              )}
               <button
                 className="btn sm"
                 title="Delete the selected orders and their activity history"
@@ -394,7 +433,7 @@ export function Queue() {
                 className="btn sm white"
                 onClick={() => {
                   buildBatch(selectedOrders.map(orderKey));
-                  navigate('/p/instant-photo-prints/print-batch');
+                  navigate(productPath(product.id, 'print-batch'));
                 }}
               >
                 Build print batch →

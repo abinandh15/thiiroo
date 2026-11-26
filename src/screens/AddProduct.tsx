@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ThemeToggle } from '../components/common';
 import { buildTemplate, orderedPhotos, parseSvgTemplate, rescale, sameSize } from '../lib/svgTemplate';
 import type { ParsedSvg, ShapeRole } from '../lib/svgTemplate';
@@ -27,6 +27,9 @@ const fmt = (v: number) => String(Math.round(v * 10) / 10);
 
 export function AddProduct() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const asinParam = params.get('asin') ?? '';
+  const packParam = params.get('pack') ?? '';
   const saveProduct = useStore((s) => s.saveProduct);
   const fileRef = useRef<HTMLInputElement>(null);
   const [parsed, setParsed] = useState<ParsedSvg | null>(null);
@@ -34,7 +37,10 @@ export function AddProduct() {
   const [error, setError] = useState('');
   const [drag, setDrag] = useState(false);
   const [name, setName] = useState('');
-  const [asins, setAsins] = useState('');
+  // arriving from the Unassigned screen: prefill the ASIN the order came with
+  const [asins, setAsins] = useState(() =>
+    asinParam ? `${asinParam}${/^\d+$/.test(packParam) ? ` ${packParam}` : ''}` : ''
+  );
   const [sizeLabel, setSizeLabel] = useState('');
   const [printArtwork, setPrintArtwork] = useState(true);
 
@@ -100,7 +106,7 @@ export function AddProduct() {
     };
     const err = saveProduct(product);
     if (err) setError(err);
-    else navigate(`/p/${product.id}/template`);
+    else navigate(`/p/${product.id}/${asinParam ? 'queue' : 'template'}`);
   };
 
   const fontSize = parsed ? Math.max(3, Math.min(parsed.sheet.w, parsed.sheet.h) / 28) : 4;
